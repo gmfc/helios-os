@@ -70,11 +70,16 @@ export class Kernel {
    */
   public async spawn(command: string): Promise<number> {
     const [progName, ...argv] = command.split(' ').filter(Boolean);
-    const program = this.programs.get(progName);
+    let program = this.programs.get(progName);
 
     if (!program) {
-      console.error(`-helios: ${progName}: command not found`);
-      return 127;
+      const path = progName.startsWith('/') ? progName : `/bin/${progName}`;
+      try {
+        program = await this.loadProgramFromFile(path);
+      } catch {
+        console.error(`-helios: ${progName}: command not found`);
+        return 127;
+      }
     }
 
     const pid = this.createProcess();
@@ -127,16 +132,40 @@ export class Kernel {
     };
   }
 
+  private async loadProgramFromFile(path: string): Promise<Program> {
+    const node = this.fs.getNode(path);
+    if (!node || node.kind !== 'file' || !node.data) {
+      throw new Error('ENOENT');
+    }
+    const code = new TextDecoder().decode(node.data);
+    const blob = new Blob([code], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    try {
+      const mod = await import(/* @vite-ignore */ url);
+      return mod.default as Program;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   // --- Syscall Implementations ---
 
   private syscall_open(pcb: ProcessControlBlock, path: string, flags: string): FileDescriptor {
-    const node = this.fs.getNode(path);
+    let node = this.fs.getNode(path);
     if (!node) {
-      throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+      if (flags.includes('w') || flags.includes('a')) {
+        node = this.fs.createFile(path, new Uint8Array(), 0o644);
+      } else {
+        throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+      }
     }
 
     const fd = pcb.nextFd++;
-    pcb.fds.set(fd, { node, position: 0, flags });
+    let position = 0;
+    if (flags.includes('a') && node.data) {
+      position = node.data.length;
+    }
+    pcb.fds.set(fd, { node, position, flags });
     return fd;
   }
 
@@ -159,7 +188,26 @@ export class Kernel {
       return data.length;
     }
 
-    // Actual file writing is not implemented in this milestone.
-    throw new Error('File writing not supported yet.');
+    const entry = pcb.fds.get(fd);
+    if (!entry || entry.node.kind !== 'file') {
+      throw new Error('EBADF: bad file descriptor');
+    }
+
+    if (!entry.flags.includes('w') && !entry.flags.includes('a')) {
+      throw new Error('EBADF: file not opened for writing');
+    }
+
+    const node = entry.node;
+    const before = node.data ? node.data.slice(0, entry.position) : new Uint8Array();
+    const after = node.data ? node.data.slice(entry.position + data.length) : new Uint8Array();
+    const newData = new Uint8Array(before.length + data.length + after.length);
+    newData.set(before, 0);
+    newData.set(data, before.length);
+    newData.set(after, before.length + data.length);
+    node.data = newData;
+    entry.position += data.length;
+    node.modifiedAt = new Date();
+    this.fs.writeFile(node.path, node.data);
+    return data.length;
   }
-} 
+}
