@@ -1,0 +1,10 @@
+/Users/gabrielcorreia/repos/helios-os/host/target/debug/deps/libicu_normalizer-d5e2a4364dd466bf.rmeta: /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/lib.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/properties.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/provider.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/uts46.rs
+
+/Users/gabrielcorreia/repos/helios-os/host/target/debug/deps/libicu_normalizer-d5e2a4364dd466bf.rlib: /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/lib.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/properties.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/provider.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/uts46.rs
+
+/Users/gabrielcorreia/repos/helios-os/host/target/debug/deps/icu_normalizer-d5e2a4364dd466bf.d: /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/lib.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/properties.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/provider.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/uts46.rs
+
+/Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/lib.rs:
+/Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/properties.rs:
+/Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/provider.rs:
+/Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/icu_normalizer-2.0.0/src/uts46.rs:

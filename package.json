@@ -1,0 +1,28 @@
+{
+  "name": "helios-os",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm:dev:ui\" \"pnpm:dev:host\"",
+    "dev:ui": "esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --servedir=. --watch --serve=:1420",
+    "dev:host": "sleep 5 && cd host && tauri dev",
+    "build": "esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --target=esnext --platform=browser",
+    "build:release": "pnpm build && cd host && tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^1.5.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@xterm/xterm": "^5.3.0",
+    "@pablo-lion/xterm-react": "^1.1.2"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.3.107",
+    "@tauri-apps/cli": "^1.5.9",
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.3",
+    "concurrently": "^8.2.2"
+  }
+} 

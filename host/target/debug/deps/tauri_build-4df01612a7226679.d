@@ -1,0 +1,10 @@
+/Users/gabrielcorreia/repos/helios-os/host/target/debug/deps/libtauri_build-4df01612a7226679.rmeta: /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/lib.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/allowlist.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/static_vcruntime.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/window-app-manifest.xml
+
+/Users/gabrielcorreia/repos/helios-os/host/target/debug/deps/libtauri_build-4df01612a7226679.rlib: /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/lib.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/allowlist.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/static_vcruntime.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/window-app-manifest.xml
+
+/Users/gabrielcorreia/repos/helios-os/host/target/debug/deps/tauri_build-4df01612a7226679.d: /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/lib.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/allowlist.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/static_vcruntime.rs /Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/window-app-manifest.xml
+
+/Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/lib.rs:
+/Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/allowlist.rs:
+/Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/static_vcruntime.rs:
+/Users/gabrielcorreia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-build-1.5.6/src/window-app-manifest.xml:
