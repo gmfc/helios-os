@@ -18,14 +18,56 @@ export interface FileSystemNode {
   children?: Map<string, FileSystemNode>;
 }
 
+const DEFAULT_ECHO = `export default {
+  async main(syscall, argv) {
+    const message = argv.join(' ') + '\n';
+    const bytes = new TextEncoder().encode(message);
+    await syscall('write', 1, bytes);
+    return 0;
+  }
+};`;
+
+const DEFAULT_CAT = `export default {
+  async main(syscall, argv) {
+    if (argv.length === 0) {
+      console.error('cat: missing operand');
+      return 1;
+    }
+    const path = argv[0];
+    const STDOUT_FD = 1;
+    const READ_CHUNK_SIZE = 1024;
+
+    try {
+      const fd = await syscall('open', path, 'r');
+      while (true) {
+        const data = await syscall('read', fd, READ_CHUNK_SIZE);
+        if (data.length === 0) break;
+        await syscall('write', STDOUT_FD, data);
+      }
+      return 0;
+    } catch (error) {
+      console.error(\`cat: ${path}: ${error.message}\`);
+      return 1;
+    }
+  }
+};`;
+
 /**
  * A simple in-memory file system implementation.
  */
 export class InMemoryFileSystem {
   private root: FileSystemNode;
   private nodes: Map<string, FileSystemNode>;
+  private static STORAGE_KEY = 'helios_fs';
 
   constructor() {
+    const stored = this.loadFromStorage();
+    if (stored) {
+      this.root = stored.root;
+      this.nodes = stored.nodes;
+      return;
+    }
+
     const now = new Date();
     this.root = {
       path: '/',
@@ -40,7 +82,11 @@ export class InMemoryFileSystem {
     this.nodes = new Map([['/', this.root]]);
 
     this.createDirectory('/etc', 0o755);
+    this.createDirectory('/bin', 0o755);
     this.createFile('/etc/issue', 'Welcome to Helios-OS v0.1\n', 0o644);
+    this.createFile('/bin/echo', DEFAULT_ECHO, 0o755);
+    this.createFile('/bin/cat', DEFAULT_CAT, 0o755);
+    this.persist();
   }
 
   /**
@@ -76,6 +122,7 @@ export class InMemoryFileSystem {
 
     parent.children?.set(directoryName, directoryNode);
     this.nodes.set(path, directoryNode);
+    this.persist();
     return directoryNode;
   }
 
@@ -114,7 +161,26 @@ export class InMemoryFileSystem {
 
     parent.children?.set(fileName, fileNode);
     this.nodes.set(path, fileNode);
+    this.persist();
     return fileNode;
+  }
+
+  /**
+   * Overwrites the content of an existing file or creates it if it does not exist.
+   */
+  public writeFile(path: string, data: Uint8Array, permissions: Permissions = 0o644) {
+    let node = this.nodes.get(path);
+    if (!node) {
+      node = this.createFile(path, data, permissions);
+      return node;
+    }
+    if (node.kind !== 'file') {
+      throw new Error(`EISDIR: illegal operation on a directory, write`);
+    }
+    node.data = data;
+    node.modifiedAt = new Date();
+    this.persist();
+    return node;
   }
 
   /**
@@ -140,6 +206,64 @@ export class InMemoryFileSystem {
    */
   public getNode(path: string): FileSystemNode | undefined {
     return this.nodes.get(path);
+  }
+
+  private serialize(): any {
+    const nodes: Record<string, any> = {};
+    for (const [path, node] of this.nodes) {
+      nodes[path] = {
+        ...node,
+        children: node.children ? Array.from(node.children.keys()) : undefined,
+        data: node.data ? Array.from(node.data) : undefined,
+      };
+    }
+    return { rootPath: this.root.path, nodes };
+  }
+
+  private loadFromStorage(): { root: FileSystemNode; nodes: Map<string, FileSystemNode> } | null {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(InMemoryFileSystem.STORAGE_KEY);
+    if (!raw) return null;
+    try {
+      const obj = JSON.parse(raw);
+      const nodes = new Map<string, FileSystemNode>();
+      for (const path of Object.keys(obj.nodes)) {
+        const n = obj.nodes[path];
+        const node: FileSystemNode = {
+          path: n.path,
+          kind: n.kind,
+          permissions: n.permissions,
+          uid: n.uid,
+          gid: n.gid,
+          createdAt: new Date(n.createdAt),
+          modifiedAt: new Date(n.modifiedAt),
+          data: n.data ? new Uint8Array(n.data) : undefined,
+          children: n.kind === 'dir' ? new Map<string, FileSystemNode>() : undefined,
+        };
+        nodes.set(path, node);
+      }
+      // rebuild children maps
+      for (const path of Object.keys(obj.nodes)) {
+        const n = obj.nodes[path];
+        if (n.children) {
+          const dir = nodes.get(path)!;
+          for (const childPath of n.children) {
+            const childName = childPath.split('/').pop()!;
+            dir.children!.set(childName, nodes.get(childPath)!);
+          }
+        }
+      }
+      const root = nodes.get('/')!;
+      return { root, nodes };
+    } catch {
+      return null;
+    }
+  }
+
+  private persist() {
+    if (typeof localStorage === 'undefined') return;
+    const json = JSON.stringify(this.serialize());
+    localStorage.setItem(InMemoryFileSystem.STORAGE_KEY, json);
   }
 
   private getParentPath(path: string): string {
