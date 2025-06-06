@@ -2,6 +2,7 @@
 // Implementation to follow based on the project roadmap. 
 
 import { InMemoryFileSystem, FileSystemNode } from './fs';
+import { loadSnapshot, createPersistHook } from './fs/sqlite';
 
 type ProcessID = number;
 type FileDescriptor = number;
@@ -47,11 +48,17 @@ export class Kernel {
   private nextPid: ProcessID;
   private programs: Map<string, Program>;
 
-  constructor() {
-    this.fs = new InMemoryFileSystem();
+  private constructor(fs: InMemoryFileSystem) {
+    this.fs = fs;
     this.processes = new Map();
     this.nextPid = 1;
     this.programs = new Map();
+  }
+
+  static async create(): Promise<Kernel> {
+    const snapshot = await loadSnapshot();
+    const fs = new InMemoryFileSystem(snapshot ?? undefined, createPersistHook());
+    return new Kernel(fs);
   }
 
   /**

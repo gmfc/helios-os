@@ -24,8 +24,9 @@ const App = () => {
     const [isBusy, setIsBusy] = useState(false);
 
     useEffect(() => {
-        const kernel = new Kernel();
-        kernelRef.current = kernel;
+        Kernel.create().then(kernel => {
+            kernelRef.current = kernel;
+        });
 
         const term = xtermRef.current?.terminal;
         if (term) {
