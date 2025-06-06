@@ -7,6 +7,7 @@ import 'react-resizable/css/styles.css';
 
 import { Kernel } from '../core/kernel';
 import catProgram from '../apps/cat';
+import echoProgram from '../apps/echo';
 import { WindowManager } from './components/WindowManager';
 
 // A basic theme for the terminal
@@ -27,6 +28,7 @@ const App = () => {
     useEffect(() => {
         const kernel = new Kernel();
         kernel.registerProgram('cat', catProgram);
+        kernel.registerProgram('echo', echoProgram);
         kernelRef.current = kernel;
 
         const term = xtermRef.current?.terminal;
