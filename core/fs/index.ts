@@ -55,13 +55,22 @@ const DEFAULT_CAT = `export default {
 /**
  * A simple in-memory file system implementation.
  */
+export interface FileSystemSnapshot {
+  rootPath: string;
+  nodes: Record<string, any>;
+}
+
+export type PersistHook = (snapshot: FileSystemSnapshot) => void;
+
 export class InMemoryFileSystem {
   private root: FileSystemNode;
   private nodes: Map<string, FileSystemNode>;
   private static STORAGE_KEY = 'helios_fs';
+  private persistHook?: PersistHook;
 
-  constructor() {
-    const stored = this.loadFromStorage();
+  constructor(snapshot?: FileSystemSnapshot, persistHook?: PersistHook) {
+    this.persistHook = persistHook;
+    const stored = snapshot ? this.deserialize(snapshot) : this.loadFromStorage();
     if (stored) {
       this.root = stored.root;
       this.nodes = stored.nodes;
@@ -220,12 +229,8 @@ export class InMemoryFileSystem {
     return { rootPath: this.root.path, nodes };
   }
 
-  private loadFromStorage(): { root: FileSystemNode; nodes: Map<string, FileSystemNode> } | null {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem(InMemoryFileSystem.STORAGE_KEY);
-    if (!raw) return null;
+  private deserialize(obj: FileSystemSnapshot): { root: FileSystemNode; nodes: Map<string, FileSystemNode> } | null {
     try {
-      const obj = JSON.parse(raw);
       const nodes = new Map<string, FileSystemNode>();
       for (const path of Object.keys(obj.nodes)) {
         const n = obj.nodes[path];
@@ -242,7 +247,6 @@ export class InMemoryFileSystem {
         };
         nodes.set(path, node);
       }
-      // rebuild children maps
       for (const path of Object.keys(obj.nodes)) {
         const n = obj.nodes[path];
         if (n.children) {
@@ -260,10 +264,26 @@ export class InMemoryFileSystem {
     }
   }
 
+  private loadFromStorage(): { root: FileSystemNode; nodes: Map<string, FileSystemNode> } | null {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(InMemoryFileSystem.STORAGE_KEY);
+    if (!raw) return null;
+    try {
+      const obj = JSON.parse(raw) as FileSystemSnapshot;
+      return this.deserialize(obj);
+    } catch {
+      return null;
+    }
+  }
+
   private persist() {
-    if (typeof localStorage === 'undefined') return;
-    const json = JSON.stringify(this.serialize());
-    localStorage.setItem(InMemoryFileSystem.STORAGE_KEY, json);
+    if (typeof localStorage !== 'undefined') {
+      const json = JSON.stringify(this.serialize());
+      localStorage.setItem(InMemoryFileSystem.STORAGE_KEY, json);
+    }
+    if (this.persistHook) {
+      this.persistHook(this.serialize());
+    }
   }
 
   private getParentPath(path: string): string {
