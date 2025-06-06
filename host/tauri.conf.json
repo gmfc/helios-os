@@ -1,7 +1,7 @@
 {
   "$schema": "../../node_modules/@tauri-apps/cli/schema.json",
   "build": {
-    "devPath": "http://localhost:1420",
+    "devPath": "http://localhost:1420/ui/index.html",
     "distDir": "../../dist",
     "withGlobalTauri": true
   },
