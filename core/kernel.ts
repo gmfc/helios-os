@@ -76,6 +76,7 @@ export class Kernel {
   private tcp: TCP;
   private udp: UDP;
   private windows: Array<{ html: Uint8Array; opts: WindowOpts }>;
+  private services: Map<string, { port: number; proto: string }>;
   private readyQueue: ProcessControlBlock[];
   private running = false;
 
@@ -87,6 +88,7 @@ export class Kernel {
     this.tcp = new TCP();
     this.udp = new UDP();
     this.windows = [];
+    this.services = new Map();
     this.readyQueue = [];
   }
 
@@ -116,6 +118,22 @@ export class Kernel {
     }
 
     return this.syscall_spawn(source, { argv, ...opts });
+  }
+
+  public registerService(name: string, port: number, proto: string, handler: ServiceHandler): void {
+    this.syscall_listen(port, proto, handler);
+    this.services.set(name, { port, proto });
+  }
+
+  public stopService(name: string): void {
+    const svc = this.services.get(name);
+    if (!svc) return;
+    if (svc.proto === 'tcp') {
+      this.tcp.unlisten(svc.port);
+    } else if (svc.proto === 'udp') {
+      this.udp.unlisten(svc.port);
+    }
+    this.services.delete(name);
   }
 
   private createProcess(): ProcessID {

@@ -10,6 +10,10 @@ export class TCP {
     return port;
   }
 
+  unlisten(port: number): void {
+    this.listeners.delete(port);
+  }
+
   connect(ip: string, port: number): number {
     const id = this.nextSocket++;
     this.sockets.set(id, { ip, port });
