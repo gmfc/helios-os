@@ -8,6 +8,7 @@ import {
   loadKernelSnapshot,
 } from './fs/sqlite';
 import { invoke } from '@tauri-apps/api/tauri';
+import { listen } from '@tauri-apps/api/event';
 import { eventBus } from './eventBus';
 import { NIC } from './net/nic';
 import { TCP } from './net/tcp';
@@ -82,6 +83,8 @@ export interface Snapshot {
  */
 export type SyscallDispatcher = (call: string, ...args: any[]) => Promise<any>;
 
+const dispatcherMap: Map<ProcessID, SyscallDispatcher> = new Map();
+
 /**
  * The Helios-OS Kernel, responsible for process, file, and system management.
  */
@@ -120,6 +123,13 @@ export class Kernel {
     const kernel = new Kernel(fs);
     const lo = new NIC('lo0', '00:00:00:00:00:00', '127.0.0.1');
     kernel.nics.set(lo.id, lo);
+    listen('syscall', async (event: any) => {
+      const { id, pid, call, args } = event.payload as any;
+      const disp = dispatcherMap.get(pid);
+      if (!disp) return;
+      const result = await disp(call, ...args);
+      await invoke('syscall_response', { id, result });
+    });
     return kernel;
   }
 
@@ -155,6 +165,14 @@ export class Kernel {
       (kernel.udp as any).sockets = new Map(snapshot.udp.sockets ?? []);
       (kernel.udp as any).nextSocket = snapshot.udp.nextSocket ?? 1;
     }
+
+    listen('syscall', async (event: any) => {
+      const { id, pid, call, args } = event.payload as any;
+      const disp = dispatcherMap.get(pid);
+      if (!disp) return;
+      const result = await disp(call, ...args);
+      await invoke('syscall_response', { id, result });
+    });
 
     kernel.readyQueue = Array.from(kernel.processes.values()).filter(p => !p.exited);
 
@@ -421,18 +439,22 @@ export class Kernel {
 
   private async runProcess(pcb: ProcessControlBlock): Promise<void> {
     if (!pcb.code) return;
-    const wrapped = `const main = ${pcb.code}; main(() => Promise.resolve(0), ${JSON.stringify(pcb.argv ?? [])});`;
+    const syscall = this.createSyscallDispatcher(pcb.pid);
+    dispatcherMap.set(pcb.pid, syscall);
+    const wrapped = `const main = ${pcb.code}; main(syscall, ${JSON.stringify(pcb.argv ?? [])});`;
     try {
       const exitCode = await invoke('run_isolate', {
         code: wrapped,
         quotaMs: pcb.quotaMs,
         quotaMem: pcb.quotaMem,
+        pid: pcb.pid,
       });
       pcb.exitCode = exitCode ?? 0;
     } catch (e) {
       console.error('Process', pcb.pid, 'crashed or exceeded quota:', e);
       pcb.exitCode = 1;
     }
+    dispatcherMap.delete(pcb.pid);
     pcb.exited = true;
   }
 
