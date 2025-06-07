@@ -81,7 +81,7 @@ fn init_v8() {
 #[tauri::command]
 async fn run_isolate(code: String, quota_ms: u64, quota_mem: usize) -> Result<i32, String> {
     init_v8();
-    let task = tokio::task::spawn_blocking(move || {
+    let fut = tokio::task::spawn_blocking(move || {
         let mut isolate = v8::Isolate::new(v8::CreateParams::default().heap_limits(0, quota_mem));
         let handle_scope = &mut v8::HandleScope::new(&mut isolate);
         let context = v8::Context::new(handle_scope, Default::default());
@@ -89,11 +89,10 @@ async fn run_isolate(code: String, quota_ms: u64, quota_mem: usize) -> Result<i3
         let code_str = v8::String::new(scope, &code).ok_or("bad code")?;
         let script = v8::Script::compile(scope, code_str, None).ok_or("compile")?;
         let value = script.run(scope).ok_or("run")?;
-        Ok(value.int32_value(scope).unwrap_or_default())
+        Ok::<i32, String>(value.int32_value(scope).unwrap_or_default())
     });
-    match timeout(Duration::from_millis(quota_ms), task).await {
-        Ok(Ok(Ok(v))) => Ok(v),
-        Ok(Ok(Err(e))) => Err(e.to_string()),
+    match timeout(Duration::from_millis(quota_ms), fut).await {
+        Ok(Ok(v)) => Ok(v),
         Ok(Err(e)) => Err(e.to_string()),
         Err(_) => Err("timeout".into()),
     }
