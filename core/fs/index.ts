@@ -52,8 +52,9 @@ export class InMemoryFileSystem {
     this.persistHook = persistHook;
     this.mounts = new Map();
     if (snapshot) {
-        this.root = this.deserialize(snapshot).root;
-        this.nodes = this.deserialize(snapshot).nodes;
+        const { root, nodes } = this.deserialize(snapshot);
+        this.root = root;
+        this.nodes = nodes;
         return;
     }
 
