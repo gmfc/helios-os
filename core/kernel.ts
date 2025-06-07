@@ -338,6 +338,10 @@ export class Kernel {
     return JSON.parse(JSON.stringify(state, replacer));
   }
 
+  public snapshot(): any {
+    return this.syscall_snapshot();
+  }
+
   private async runProcess(pcb: ProcessControlBlock): Promise<void> {
     if (!pcb.code) return;
     const wrapped = `const main = ${pcb.code}; main(() => Promise.resolve(0), ${JSON.stringify(pcb.argv ?? [])});`;
