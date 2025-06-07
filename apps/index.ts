@@ -2,7 +2,6 @@ export * from './browser';
 export * from './sshClient';
 export * from './nano';
 export * from './webBrowser';
-export * from './echo';
 
 import { NANO_SOURCE } from './nano';
 import { BROWSER_SOURCE } from './webBrowser';
