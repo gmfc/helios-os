@@ -422,7 +422,7 @@ export class Kernel {
       return value;
     };
 
-    const fsSnapshot = (this.fs as any).serialize();
+    const fsSnapshot = this.fs.getSnapshot();
     const state: Snapshot = {
       fs: fsSnapshot,
       processes: this.processes,
