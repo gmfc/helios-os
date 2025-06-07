@@ -27,12 +27,9 @@ interface ProcessControlBlock {
   nextFd: FileDescriptor;
 }
 
-/**
- * Defines the interface for a program that can be run by the kernel.
- */
-export interface Program {
+type Program = {
   main: (syscall: SyscallDispatcher, argv: string[]) => Promise<number>;
-}
+};
 
 /**
  * A function that dispatches a syscall to the kernel for a specific process.
@@ -46,47 +43,35 @@ export class Kernel {
   private fs: InMemoryFileSystem;
   private processes: Map<ProcessID, ProcessControlBlock>;
   private nextPid: ProcessID;
-  private programs: Map<string, Program>;
 
   private constructor(fs: InMemoryFileSystem) {
     this.fs = fs;
     this.processes = new Map();
     this.nextPid = 1;
-    this.programs = new Map();
   }
 
-  static async create(): Promise<Kernel> {
+  public static async create(): Promise<Kernel> {
     const snapshot = await loadSnapshot();
     const fs = new InMemoryFileSystem(snapshot ?? undefined, createPersistHook());
     return new Kernel(fs);
   }
 
-  /**
-   * Registers a program with the kernel so it can be spawned.
-   * @param name The name of the program (e.g., 'cat').
-   * @param program The program implementation.
-   */
-  public registerProgram(name: string, program: Program) {
-    this.programs.set(name, program);
-  }
-
-  /**
-   * Spawns a new process to run a program.
-   * @param command The command to run, including arguments (e.g., 'cat /etc/issue').
-   * @returns The exit code of the process.
-   */
   public async spawn(command: string): Promise<number> {
     const [progName, ...argv] = command.split(' ').filter(Boolean);
-    let program = this.programs.get(progName);
+    const path = `/bin/${progName}`; // Assume programs are in /bin
 
-    if (!program) {
-      const path = progName.startsWith('/') ? progName : `/bin/${progName}`;
-      try {
-        program = await this.loadProgramFromFile(path);
-      } catch {
-        console.error(`-helios: ${progName}: command not found`);
-        return 127;
+    let program: Program;
+    try {
+      const node = this.fs.getNode(path);
+      if (!node || node.kind !== 'file' || !node.data) {
+        throw new Error();
       }
+      const source = new TextDecoder().decode(node.data);
+      const mainFunc = new Function(`return ${source}`)();
+      program = { main: mainFunc };
+    } catch (e) {
+      console.error(`-helios: ${progName}: command not found`);
+      return 127;
     }
 
     const pid = this.createProcess();
@@ -133,26 +118,12 @@ export class Kernel {
           return this.syscall_read(pcb, args[0], args[1]);
         case 'write':
           return this.syscall_write(pcb, args[0], args[1]);
+        case 'close':
+          return this.syscall_close(pcb, args[0]);
         default:
           throw new Error(`Unknown syscall: ${call}`);
       }
     };
-  }
-
-  private async loadProgramFromFile(path: string): Promise<Program> {
-    const node = this.fs.getNode(path);
-    if (!node || node.kind !== 'file' || !node.data) {
-      throw new Error('ENOENT');
-    }
-    const code = new TextDecoder().decode(node.data);
-    const blob = new Blob([code], { type: 'application/javascript' });
-    const url = URL.createObjectURL(blob);
-    try {
-      const mod = await import(/* @vite-ignore */ url);
-      return mod.default as Program;
-    } finally {
-      URL.revokeObjectURL(url);
-    }
   }
 
   // --- Syscall Implementations ---
@@ -216,5 +187,13 @@ export class Kernel {
     node.modifiedAt = new Date();
     this.fs.writeFile(node.path, node.data);
     return data.length;
+  }
+
+  private syscall_close(pcb: ProcessControlBlock, fd: FileDescriptor): number {
+    if (!pcb.fds.has(fd)) {
+      return -1; // EBADF
+    }
+    pcb.fds.delete(fd);
+    return 0;
   }
 }

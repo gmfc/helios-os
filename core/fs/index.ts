@@ -1,3 +1,6 @@
+import { ECHO_SOURCE, CAT_SOURCE } from './bin';
+import { createPersistHook } from './sqlite';
+
 /**
  * Represents file permissions using a UNIX-like octal number.
  */
@@ -18,63 +21,24 @@ export interface FileSystemNode {
   children?: Map<string, FileSystemNode>;
 }
 
-const DEFAULT_ECHO = `export default {
-  async main(syscall, argv) {
-    const message = argv.join(' ') + '\n';
-    const bytes = new TextEncoder().encode(message);
-    await syscall('write', 1, bytes);
-    return 0;
-  }
-};`;
-
-const DEFAULT_CAT = `export default {
-  async main(syscall, argv) {
-    if (argv.length === 0) {
-      console.error('cat: missing operand');
-      return 1;
-    }
-    const path = argv[0];
-    const STDOUT_FD = 1;
-    const READ_CHUNK_SIZE = 1024;
-
-    try {
-      const fd = await syscall('open', path, 'r');
-      while (true) {
-        const data = await syscall('read', fd, READ_CHUNK_SIZE);
-        if (data.length === 0) break;
-        await syscall('write', STDOUT_FD, data);
-      }
-      return 0;
-    } catch (error) {
-      console.error(\`cat: ${path}: ${error.message}\`);
-      return 1;
-    }
-  }
-};`;
-
-/**
- * A simple in-memory file system implementation.
- */
-export interface FileSystemSnapshot {
-  rootPath: string;
-  nodes: Record<string, any>;
-}
+export type FileSystemSnapshot = {
+  root: FileSystemNode;
+  nodes: Map<string, FileSystemNode>;
+};
 
 export type PersistHook = (snapshot: FileSystemSnapshot) => void;
 
 export class InMemoryFileSystem {
   private root: FileSystemNode;
   private nodes: Map<string, FileSystemNode>;
-  private static STORAGE_KEY = 'helios_fs';
   private persistHook?: PersistHook;
 
   constructor(snapshot?: FileSystemSnapshot, persistHook?: PersistHook) {
     this.persistHook = persistHook;
-    const stored = snapshot ? this.deserialize(snapshot) : this.loadFromStorage();
-    if (stored) {
-      this.root = stored.root;
-      this.nodes = stored.nodes;
-      return;
+    if (snapshot) {
+        this.root = this.deserialize(snapshot).root;
+        this.nodes = this.deserialize(snapshot).nodes;
+        return;
     }
 
     const now = new Date();
@@ -89,12 +53,17 @@ export class InMemoryFileSystem {
       children: new Map(),
     };
     this.nodes = new Map([['/', this.root]]);
+    this.initDefaultFiles();
+  }
 
+  private initDefaultFiles() {
     this.createDirectory('/etc', 0o755);
-    this.createDirectory('/bin', 0o755);
     this.createFile('/etc/issue', 'Welcome to Helios-OS v0.1\n', 0o644);
-    this.createFile('/bin/echo', DEFAULT_ECHO, 0o755);
-    this.createFile('/bin/cat', DEFAULT_CAT, 0o755);
+    
+    this.createDirectory('/bin', 0o755);
+    this.createFile('/bin/cat', CAT_SOURCE, 0o755);
+    this.createFile('/bin/echo', ECHO_SOURCE, 0o755);
+
     this.persist();
   }
 
@@ -177,17 +146,12 @@ export class InMemoryFileSystem {
   /**
    * Overwrites the content of an existing file or creates it if it does not exist.
    */
-  public writeFile(path: string, data: Uint8Array, permissions: Permissions = 0o644) {
-    let node = this.nodes.get(path);
-    if (!node) {
-      node = this.createFile(path, data, permissions);
-      return node;
-    }
-    if (node.kind !== 'file') {
-      throw new Error(`EISDIR: illegal operation on a directory, write`);
+  public writeFile(path: string, data: Uint8Array): FileSystemNode {
+    const node = this.nodes.get(path);
+    if (!node || node.kind !== 'file') {
+      throw new Error(`ENOENT: no such file or directory, open '${path}'`);
     }
     node.data = data;
-    node.modifiedAt = new Date();
     this.persist();
     return node;
   }
@@ -217,73 +181,44 @@ export class InMemoryFileSystem {
     return this.nodes.get(path);
   }
 
-  private serialize(): any {
-    const nodes: Record<string, any> = {};
-    for (const [path, node] of this.nodes) {
-      nodes[path] = {
-        ...node,
-        children: node.children ? Array.from(node.children.keys()) : undefined,
-        data: node.data ? Array.from(node.data) : undefined,
-      };
-    }
-    return { rootPath: this.root.path, nodes };
-  }
-
-  private deserialize(obj: FileSystemSnapshot): { root: FileSystemNode; nodes: Map<string, FileSystemNode> } | null {
-    try {
-      const nodes = new Map<string, FileSystemNode>();
-      for (const path of Object.keys(obj.nodes)) {
-        const n = obj.nodes[path];
-        const node: FileSystemNode = {
-          path: n.path,
-          kind: n.kind,
-          permissions: n.permissions,
-          uid: n.uid,
-          gid: n.gid,
-          createdAt: new Date(n.createdAt),
-          modifiedAt: new Date(n.modifiedAt),
-          data: n.data ? new Uint8Array(n.data) : undefined,
-          children: n.kind === 'dir' ? new Map<string, FileSystemNode>() : undefined,
-        };
-        nodes.set(path, node);
-      }
-      for (const path of Object.keys(obj.nodes)) {
-        const n = obj.nodes[path];
-        if (n.children) {
-          const dir = nodes.get(path)!;
-          for (const childPath of n.children) {
-            const childName = childPath.split('/').pop()!;
-            dir.children!.set(childName, nodes.get(childPath)!);
-          }
-        }
-      }
-      const root = nodes.get('/')!;
-      return { root, nodes };
-    } catch {
-      return null;
-    }
-  }
-
-  private loadFromStorage(): { root: FileSystemNode; nodes: Map<string, FileSystemNode> } | null {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem(InMemoryFileSystem.STORAGE_KEY);
-    if (!raw) return null;
-    try {
-      const obj = JSON.parse(raw) as FileSystemSnapshot;
-      return this.deserialize(obj);
-    } catch {
-      return null;
-    }
-  }
-
   private persist() {
-    if (typeof localStorage !== 'undefined') {
-      const json = JSON.stringify(this.serialize());
-      localStorage.setItem(InMemoryFileSystem.STORAGE_KEY, json);
-    }
     if (this.persistHook) {
       this.persistHook(this.serialize());
     }
+  }
+
+  private serialize(): FileSystemSnapshot {
+    // Custom replacer to convert Map to Array for JSON.stringify
+    const replacer = (key, value) => {
+      if(value instanceof Map) {
+        return {
+          dataType: 'Map',
+          value: Array.from(value.entries()),
+        };
+      } else {
+        return value;
+      }
+    };
+    return JSON.parse(JSON.stringify({ root: this.root, nodes: this.nodes }, replacer));
+  }
+
+  private deserialize(snapshot: FileSystemSnapshot): FileSystemSnapshot {
+    const reviver = (key, value) => {
+        if(typeof value === 'object' && value !== null) {
+          if (value.dataType === 'Map') {
+            return new Map(value.value);
+          }
+          if (key === 'createdAt' || key === 'modifiedAt') {
+              return new Date(value);
+          }
+        }
+        return value;
+    };
+    const parsed = JSON.parse(JSON.stringify(snapshot), reviver);
+    return {
+        root: parsed.root,
+        nodes: parsed.nodes
+    };
   }
 
   private getParentPath(path: string): string {
