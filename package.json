@@ -8,7 +8,8 @@
     "dev:host": "sleep 5 && cd host && tauri dev",
     "build": "esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --target=esnext --platform=browser",
     "build:release": "pnpm build && cd host && tauri build",
-    "helios": "ts-node tools/helios.ts"
+    "helios": "ts-node tools/helios.ts",
+    "test": "esbuild core/fs/index.test.ts --bundle --platform=node --format=cjs --outfile=core/fs/index.test.js && node core/fs/index.test.js && rm core/fs/index.test.js"
   },
   "dependencies": {
     "@pablo-lion/xterm-react": "^1.1.2",
