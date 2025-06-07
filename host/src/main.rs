@@ -7,6 +7,43 @@ use tokio::time::timeout;
 use v8;
 
 #[tauri::command]
+fn save_snapshot(json: String) -> Result<(), String> {
+    let dir = app_dir(&tauri::Config::default()).ok_or("no app dir")?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let db_path = dir.join("snapshot.db");
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS snapshot_state (id INTEGER PRIMARY KEY, json TEXT)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR REPLACE INTO snapshot_state (id, json) VALUES (0, ?1)",
+        params![json],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn load_snapshot() -> Result<Option<Value>, String> {
+    let dir = app_dir(&tauri::Config::default()).ok_or("no app dir")?;
+    let db_path = dir.join("snapshot.db");
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS snapshot_state (id INTEGER PRIMARY KEY, json TEXT)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT json FROM snapshot_state WHERE id=0")
+        .map_err(|e| e.to_string())?;
+    let result: Option<String> =
+        stmt.query_row([], |row| row.get(0)).optional().map_err(|e| e.to_string())?;
+    Ok(result.map(|s| serde_json::from_str(&s).unwrap()))
+}
+
+#[tauri::command]
 fn save_fs(json: String) -> Result<(), String> {
     let dir = app_dir(&tauri::Config::default()).ok_or("no app dir")?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -64,7 +101,13 @@ async fn run_isolate(code: String, quota_ms: u64, quota_mem: usize) -> Result<i3
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![save_fs, load_fs, run_isolate])
+        .invoke_handler(tauri::generate_handler![
+            save_fs,
+            load_fs,
+            save_snapshot,
+            load_snapshot,
+            run_isolate
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

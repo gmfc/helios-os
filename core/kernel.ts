@@ -2,7 +2,11 @@
 // Implementation to follow based on the project roadmap. 
 
 import { InMemoryFileSystem, FileSystemNode } from './fs';
-import { loadSnapshot, createPersistHook } from './fs/sqlite';
+import {
+  loadSnapshot,
+  createPersistHook,
+  loadKernelSnapshot,
+} from './fs/sqlite';
 import { invoke } from '@tauri-apps/api/tauri';
 import { eventBus } from './eventBus';
 import { NIC } from './net/nic';
@@ -60,6 +64,17 @@ export interface WindowOpts {
   y?: number;
 }
 
+export interface Snapshot {
+  fs: any;
+  processes: any;
+  windows: Array<{ html: Uint8Array; opts: WindowOpts }>;
+  nextPid: number;
+  nics: any;
+  tcp: any;
+  udp: any;
+  services: any;
+}
+
 /**
  * A function that dispatches a syscall to the kernel for a specific process.
  */
@@ -93,11 +108,54 @@ export class Kernel {
   }
 
   public static async create(): Promise<Kernel> {
+    const full = await loadKernelSnapshot();
+    if (full) {
+      return Kernel.restore(full as Snapshot);
+    }
+
     const snapshot = await loadSnapshot();
     const fs = new InMemoryFileSystem(snapshot ?? undefined, createPersistHook());
     const kernel = new Kernel(fs);
     const lo = new NIC('lo0', '00:00:00:00:00:00', '127.0.0.1');
     kernel.nics.set(lo.id, lo);
+    return kernel;
+  }
+
+  public static async restore(snapshot: Snapshot): Promise<Kernel> {
+    const fs = new InMemoryFileSystem(snapshot.fs ?? undefined, createPersistHook());
+    const kernel = new Kernel(fs);
+
+    kernel.processes = new Map(snapshot.processes ?? []);
+    kernel.nextPid = snapshot.nextPid ?? 1;
+    kernel.windows = snapshot.windows ?? [];
+    kernel.services = new Map(snapshot.services ?? []);
+
+    kernel.nics = new Map();
+    if (snapshot.nics) {
+      for (const [id, nic] of snapshot.nics) {
+        const n = new NIC(nic.id, nic.mac, nic.ip);
+        n.rx = nic.rx ?? [];
+        n.tx = nic.tx ?? [];
+        kernel.nics.set(id, n);
+      }
+    }
+
+    kernel.tcp = new TCP();
+    if (snapshot.tcp) {
+      (kernel.tcp as any).listeners = new Map(snapshot.tcp.listeners ?? []);
+      (kernel.tcp as any).sockets = new Map(snapshot.tcp.sockets ?? []);
+      (kernel.tcp as any).nextSocket = snapshot.tcp.nextSocket ?? 1;
+    }
+
+    kernel.udp = new UDP();
+    if (snapshot.udp) {
+      (kernel.udp as any).listeners = new Map(snapshot.udp.listeners ?? []);
+      (kernel.udp as any).sockets = new Map(snapshot.udp.sockets ?? []);
+      (kernel.udp as any).nextSocket = snapshot.udp.nextSocket ?? 1;
+    }
+
+    kernel.readyQueue = Array.from(kernel.processes.values()).filter(p => !p.exited);
+
     return kernel;
   }
 
@@ -181,7 +239,7 @@ export class Kernel {
         case 'draw':
           return this.syscall_draw(args[0], args[1]);
         case 'snapshot':
-          return this.syscall_snapshot();
+          return this.snapshot();
         default:
           throw new Error(`Unknown syscall: ${call}`);
       }
@@ -320,7 +378,7 @@ export class Kernel {
     return id;
   }
 
-  private syscall_snapshot(): any {
+  public snapshot(): Snapshot {
     const replacer = (_: string, value: any) => {
       if (value instanceof Map) {
         return { dataType: 'Map', value: Array.from(value.entries()) };
@@ -329,17 +387,18 @@ export class Kernel {
     };
 
     const fsSnapshot = (this.fs as any).serialize();
-    const state = {
+    const state: Snapshot = {
       fs: fsSnapshot,
       processes: this.processes,
       windows: this.windows,
       nextPid: this.nextPid,
+      nics: this.nics,
+      tcp: this.tcp,
+      udp: this.udp,
+      services: this.services,
     };
-    return JSON.parse(JSON.stringify(state, replacer));
-  }
 
-  public snapshot(): any {
-    return this.syscall_snapshot();
+    return JSON.parse(JSON.stringify(state, replacer));
   }
 
   private async runProcess(pcb: ProcessControlBlock): Promise<void> {

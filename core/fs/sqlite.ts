@@ -23,3 +23,21 @@ export function createPersistHook(): PersistHook {
     persistSnapshot(snapshot);
   };
 }
+
+// Full kernel snapshot helpers
+export async function loadKernelSnapshot(): Promise<any | null> {
+  try {
+    const result = await invoke<any>('load_snapshot');
+    return result as any;
+  } catch {
+    return null;
+  }
+}
+
+export async function persistKernelSnapshot(snapshot: any) {
+  try {
+    await invoke('save_snapshot', { json: JSON.stringify(snapshot) });
+  } catch {
+    // ignore
+  }
+}
