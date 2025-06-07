@@ -5,8 +5,9 @@ import { ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import 'react-resizable/css/styles.css';
 
-import { Kernel } from '../core/kernel';
-import { WindowManager } from './components/WindowManager';
+import { Kernel, WindowOpts } from '../core/kernel';
+import { WindowManager, WindowManagerHandles } from './components/WindowManager';
+import { eventBus } from '../core/eventBus';
 
 // A basic theme for the terminal
 const theme: ITheme = {
@@ -20,6 +21,7 @@ const App = () => {
     const xtermRef = useRef<XTerm>(null);
     const fitAddonRef = useRef<FitAddon | null>(null);
     const kernelRef = useRef<Kernel | null>(null);
+    const windowManagerRef = useRef<WindowManagerHandles>(null);
     const [commandLine, setCommandLine] = useState('');
     const [isBusy, setIsBusy] = useState(false);
 
@@ -63,6 +65,24 @@ const App = () => {
         }
     }, []);
 
+    useEffect(() => {
+        const handler = (payload: { id: number; html: string; opts: WindowOpts }) => {
+            windowManagerRef.current?.openWindow({
+                id: payload.id,
+                title: payload.opts.title,
+                position: { x: payload.opts.x ?? 50, y: payload.opts.y ?? 50 },
+                size: {
+                    width: payload.opts.width ?? 400,
+                    height: payload.opts.height ?? 300,
+                },
+                content: payload.html,
+            });
+        };
+
+        eventBus.on('draw', handler);
+        return () => eventBus.off('draw', handler);
+    }, []);
+
     const handleResize = useCallback(() => {
         fitAddonRef.current?.fit();
     }, []);
@@ -96,7 +116,7 @@ const App = () => {
     };
 
     return (
-        <WindowManager onResize={handleResize}>
+        <WindowManager ref={windowManagerRef} onResize={handleResize}>
             <XTerm
                 ref={xtermRef}
                 options={{ theme, cursorBlink: true, convertEol: true }}

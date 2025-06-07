@@ -4,6 +4,7 @@
 import { InMemoryFileSystem, FileSystemNode } from './fs';
 import { loadSnapshot, createPersistHook } from './fs/sqlite';
 import { invoke } from '@tauri-apps/api/tauri';
+import { eventBus } from './eventBus';
 
 type ProcessID = number;
 type FileDescriptor = number;
@@ -281,8 +282,15 @@ export class Kernel {
   }
 
   private syscall_draw(html: Uint8Array, opts: WindowOpts): number {
+    const id = this.windows.length;
     this.windows.push({ html, opts });
-    return this.windows.length - 1;
+    const payload = {
+      id,
+      html: new TextDecoder().decode(html),
+      opts,
+    };
+    eventBus.emit('draw', payload);
+    return id;
   }
 
   private syscall_snapshot(): any {
