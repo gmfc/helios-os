@@ -217,6 +217,13 @@ export class InMemoryFileSystem {
     return this.nodes.get(path);
   }
 
+  /**
+   * Returns a serializable snapshot of the file system.
+   */
+  public getSnapshot(): FileSystemSnapshot {
+    return this.serialize();
+  }
+
   public mount(image: FileSystemSnapshot, path: string): void {
     const snap = this.deserialize(image);
     let mountPoint = this.nodes.get(path);
