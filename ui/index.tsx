@@ -5,9 +5,9 @@ import { ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import 'react-resizable/css/styles.css';
 
-import { Kernel, WindowOpts } from '../core/kernel';
+import { Kernel } from '../core/kernel';
 import { WindowManager, WindowManagerHandles } from './components/WindowManager';
-import { eventBus } from '../core/eventBus';
+import { eventBus, type DrawPayload } from '../core/eventBus';
 
 // A basic theme for the terminal
 const theme: ITheme = {
@@ -74,7 +74,7 @@ const App = () => {
     }, []);
 
     useEffect(() => {
-        const handler = (payload: { id: number; html: string; opts: WindowOpts }) => {
+        const handler = (payload: DrawPayload) => {
             windowManagerRef.current?.openWindow({
                 id: payload.id,
                 title: payload.opts.title,
