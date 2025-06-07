@@ -1,4 +1,5 @@
 use once_cell::sync::Lazy;
+use tauri::Manager;
 use rusqlite::{params, OptionalExtension};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -142,7 +143,8 @@ async fn run_isolate(
         Ok::<i32, String>(value.int32_value(scope).unwrap_or_default())
     });
     match timeout(Duration::from_millis(quota_ms), fut).await {
-        Ok(Ok(v)) => Ok(v),
+        Ok(Ok(Ok(v))) => Ok(v),
+        Ok(Ok(Err(e))) => Err(e),
         Ok(Err(e)) => Err(e.to_string()),
         Err(_) => Err("timeout".into()),
     }
