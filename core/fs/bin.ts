@@ -126,3 +126,24 @@ export const BROWSER_SOURCE = `
   }
 `;
 
+
+export const CAT_MANIFEST = JSON.stringify({
+  name: 'cat',
+  syscalls: ['open', 'read', 'write', 'close']
+});
+
+export const ECHO_MANIFEST = JSON.stringify({
+  name: 'echo',
+  syscalls: ['open', 'write', 'close']
+});
+
+export const NANO_MANIFEST = JSON.stringify({
+  name: 'nano',
+  syscalls: ['open', 'read', 'write', 'close', 'draw']
+});
+
+export const BROWSER_MANIFEST = JSON.stringify({
+  name: 'browser',
+  syscalls: ['draw']
+});
+

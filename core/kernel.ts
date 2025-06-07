@@ -34,6 +34,7 @@ interface ProcessControlBlock {
   gid: number;
   quotaMs: number;
   quotaMem: number;
+  allowedSyscalls?: Set<string>;
   fds: Map<FileDescriptor, FileDescriptorEntry>;
   nextFd: FileDescriptor;
   code?: string;
@@ -52,6 +53,7 @@ export interface SpawnOpts {
   gid?: number;
   quotaMs?: number;
   quotaMem?: number;
+  syscalls?: string[];
 }
 
 export type ServiceHandler = (data: Uint8Array) => Promise<Uint8Array | void>;
@@ -162,6 +164,7 @@ export class Kernel {
   public async spawn(command: string, opts: SpawnOpts = {}): Promise<number> {
     const [progName, ...argv] = command.split(' ').filter(Boolean);
     const path = `/bin/${progName}`; // Assume programs are in /bin
+    const manifestPath = `/bin/${progName}.manifest.json`;
 
     let source: string;
     try {
@@ -175,7 +178,16 @@ export class Kernel {
       return 127;
     }
 
-    return this.syscall_spawn(source, { argv, ...opts });
+    let manifestSyscalls: string[] | undefined;
+    try {
+      const mnode = this.fs.getNode(manifestPath);
+      if (mnode && mnode.kind === 'file' && mnode.data) {
+        const { syscalls } = JSON.parse(new TextDecoder().decode(mnode.data));
+        if (Array.isArray(syscalls)) manifestSyscalls = syscalls;
+      }
+    } catch {}
+
+    return this.syscall_spawn(source, { argv, syscalls: manifestSyscalls, ...opts });
   }
 
   public registerService(name: string, port: number, proto: string, handler: ServiceHandler): void {
@@ -202,6 +214,7 @@ export class Kernel {
       gid: 1000,
       quotaMs: 10,
       quotaMem: 8 * 1024 * 1024,
+      allowedSyscalls: undefined,
       fds: new Map(),
       nextFd: 3, // 0, 1, 2 are reserved for stdio
       exited: false,
@@ -219,6 +232,10 @@ export class Kernel {
       const pcb = this.processes.get(pid);
       if (!pcb) {
         throw new Error(`Invalid PID ${pid} for syscall`);
+      }
+
+      if (pcb.allowedSyscalls && !pcb.allowedSyscalls.has(call)) {
+        throw new Error(`Syscall '${call}' not permitted`);
       }
 
       switch (call) {
@@ -346,6 +363,7 @@ export class Kernel {
     if (opts.gid !== undefined) pcb.gid = opts.gid;
     if (opts.quotaMs !== undefined) pcb.quotaMs = opts.quotaMs;
     if (opts.quotaMem !== undefined) pcb.quotaMem = opts.quotaMem;
+    if (opts.syscalls) pcb.allowedSyscalls = new Set(opts.syscalls);
     pcb.code = code;
     pcb.argv = opts.argv ?? [];
     this.readyQueue.push(pcb);
@@ -412,7 +430,7 @@ export class Kernel {
       });
       pcb.exitCode = exitCode ?? 0;
     } catch (e) {
-      console.error('Process', pcb.pid, 'crashed:', e);
+      console.error('Process', pcb.pid, 'crashed or exceeded quota:', e);
       pcb.exitCode = 1;
     }
     pcb.exited = true;

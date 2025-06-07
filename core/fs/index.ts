@@ -1,4 +1,13 @@
-import { ECHO_SOURCE, CAT_SOURCE, NANO_SOURCE, BROWSER_SOURCE } from './bin';
+import {
+  ECHO_SOURCE,
+  CAT_SOURCE,
+  NANO_SOURCE,
+  BROWSER_SOURCE,
+  CAT_MANIFEST,
+  ECHO_MANIFEST,
+  NANO_MANIFEST,
+  BROWSER_MANIFEST,
+} from './bin';
 import { createPersistHook } from './sqlite';
 
 /**
@@ -69,9 +78,13 @@ export class InMemoryFileSystem {
     
     this.createDirectory('/bin', 0o755);
     this.createFile('/bin/cat', CAT_SOURCE, 0o755);
+    this.createFile('/bin/cat.manifest.json', CAT_MANIFEST, 0o644);
     this.createFile('/bin/echo', ECHO_SOURCE, 0o755);
+    this.createFile('/bin/echo.manifest.json', ECHO_MANIFEST, 0o644);
     this.createFile('/bin/nano', NANO_SOURCE, 0o755);
+    this.createFile('/bin/nano.manifest.json', NANO_MANIFEST, 0o644);
     this.createFile('/bin/browser', BROWSER_SOURCE, 0o755);
+    this.createFile('/bin/browser.manifest.json', BROWSER_MANIFEST, 0o644);
 
     const bundled = (globalThis as any).BUNDLED_DISK_IMAGES as
       | Array<{ image: FileSystemSnapshot; path: string }>
