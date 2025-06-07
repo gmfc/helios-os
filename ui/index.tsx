@@ -26,8 +26,11 @@ const App = () => {
     const [isBusy, setIsBusy] = useState(false);
 
     useEffect(() => {
+        let cleanup: (() => void) | undefined;
+
         Kernel.create().then(kernel => {
             kernelRef.current = kernel;
+            kernel.start().catch(console.error);
         });
 
         const term = xtermRef.current?.terminal;
@@ -58,11 +61,16 @@ const App = () => {
             console.log = (...args: any[]) => writeToTerminal(args, originalLog);
             console.error = (...args: any[]) => writeToTerminal(args, originalError);
 
-            return () => {
+            cleanup = () => {
                 console.log = originalLog;
                 console.error = originalError;
             };
         }
+
+        return () => {
+            cleanup?.();
+            kernelRef.current = null;
+        };
     }, []);
 
     useEffect(() => {
