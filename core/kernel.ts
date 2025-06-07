@@ -472,4 +472,8 @@ export class Kernel {
       }
     }
   }
+
+  public stop(): void {
+    this.running = false;
+  }
 }
