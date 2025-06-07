@@ -9,8 +9,8 @@
     "build": "esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --target=esnext --platform=browser --tsconfig=tsconfig.json",
     "build:release": "pnpm build && cd host && tauri build",
     "helios": "tsx tools/helios.ts",
-    "test": "esbuild core/fs/index.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/fs/index.test.js && node core/fs/index.test.js && rm core/fs/index.test.js && esbuild core/kernel.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/kernel.test.js && node core/kernel.test.js && rm core/kernel.test.js"
-  },
+    "test": "esbuild core/fs/index.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/fs/index.test.js && node core/fs/index.test.js && rm core/fs/index.test.js && esbuild core/kernel.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/kernel.test.js && node core/kernel.test.js && rm core/kernel.test.js && esbuild core/net/index.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/net/index.test.js && node core/net/index.test.js && rm core/net/index.test.js"
+    },
   "dependencies": {
     "@pablo-lion/xterm-react": "^1.1.2",
     "@tauri-apps/api": "^1.5.3",
