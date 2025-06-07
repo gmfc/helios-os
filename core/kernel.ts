@@ -3,6 +3,7 @@
 
 import { InMemoryFileSystem, FileSystemNode } from './fs';
 import { loadSnapshot, createPersistHook } from './fs/sqlite';
+import { invoke } from '@tauri-apps/api/tauri';
 
 type ProcessID = number;
 type FileDescriptor = number;
@@ -23,8 +24,14 @@ interface ProcessControlBlock {
   pid: ProcessID;
   uid: number;
   gid: number;
+  quotaMs: number;
+  quotaMem: number;
   fds: Map<FileDescriptor, FileDescriptorEntry>;
   nextFd: FileDescriptor;
+  code?: string;
+  argv?: string[];
+  exited?: boolean;
+  exitCode?: number;
 }
 
 type Program = {
@@ -35,6 +42,8 @@ export interface SpawnOpts {
   argv?: string[];
   uid?: number;
   gid?: number;
+  quotaMs?: number;
+  quotaMem?: number;
 }
 
 export type ServiceHandler = (data: Uint8Array) => Promise<Uint8Array | void>;
@@ -63,6 +72,8 @@ export class Kernel {
   private sockets: Map<number, { ip: string; port: number }>;
   private nextSocketId: number;
   private windows: Array<{ html: Uint8Array; opts: WindowOpts }>;
+  private readyQueue: ProcessControlBlock[];
+  private running = false;
 
   private constructor(fs: InMemoryFileSystem) {
     this.fs = fs;
@@ -72,6 +83,7 @@ export class Kernel {
     this.sockets = new Map();
     this.nextSocketId = 1;
     this.windows = [];
+    this.readyQueue = [];
   }
 
   public static async create(): Promise<Kernel> {
@@ -80,7 +92,7 @@ export class Kernel {
     return new Kernel(fs);
   }
 
-  public async spawn(command: string): Promise<number> {
+  public async spawn(command: string, opts: SpawnOpts = {}): Promise<number> {
     const [progName, ...argv] = command.split(' ').filter(Boolean);
     const path = `/bin/${progName}`; // Assume programs are in /bin
 
@@ -96,7 +108,7 @@ export class Kernel {
       return 127;
     }
 
-    return this.syscall_spawn(source, { argv });
+    return this.syscall_spawn(source, { argv, ...opts });
   }
 
   private createProcess(): ProcessID {
@@ -105,8 +117,11 @@ export class Kernel {
       pid,
       uid: 1000,
       gid: 1000,
+      quotaMs: 10,
+      quotaMem: 8 * 1024 * 1024,
       fds: new Map(),
       nextFd: 3, // 0, 1, 2 are reserved for stdio
+      exited: false,
     };
     this.processes.set(pid, pcb);
     return pid;
@@ -224,26 +239,12 @@ export class Kernel {
     const pcb = this.processes.get(pid)!;
     if (opts.uid !== undefined) pcb.uid = opts.uid;
     if (opts.gid !== undefined) pcb.gid = opts.gid;
-
-    let program: Program;
-    try {
-      const mainFunc = new Function(`return ${code}`)();
-      program = { main: mainFunc };
-    } catch (e) {
-      this.cleanupProcess(pid);
-      throw e;
-    }
-
-    const syscallDispatcher = this.createSyscallDispatcher(pid);
-    const argv = opts.argv ?? [];
-    try {
-      return await program.main(syscallDispatcher, argv);
-    } catch (err) {
-      console.error(`Process ${pid} crashed:`, err);
-      return 1;
-    } finally {
-      this.cleanupProcess(pid);
-    }
+    if (opts.quotaMs !== undefined) pcb.quotaMs = opts.quotaMs;
+    if (opts.quotaMem !== undefined) pcb.quotaMem = opts.quotaMem;
+    pcb.code = code;
+    pcb.argv = opts.argv ?? [];
+    this.readyQueue.push(pcb);
+    return pid;
   }
 
   private syscall_listen(port: number, proto: string, cb: ServiceHandler): number {
@@ -281,5 +282,37 @@ export class Kernel {
       nextSocketId: this.nextSocketId,
     };
     return JSON.parse(JSON.stringify(state, replacer));
+  }
+
+  private async runProcess(pcb: ProcessControlBlock): Promise<void> {
+    if (!pcb.code) return;
+    const wrapped = `const main = ${pcb.code}; main(() => Promise.resolve(0), ${JSON.stringify(pcb.argv ?? [])});`;
+    try {
+      const exitCode = await invoke('run_isolate', {
+        code: wrapped,
+        quotaMs: pcb.quotaMs,
+        quotaMem: pcb.quotaMem,
+      });
+      pcb.exitCode = exitCode ?? 0;
+    } catch (e) {
+      console.error('Process', pcb.pid, 'crashed:', e);
+      pcb.exitCode = 1;
+    }
+    pcb.exited = true;
+  }
+
+  public async start(): Promise<void> {
+    this.running = true;
+    while (this.running) {
+      const pcb = this.readyQueue.shift();
+      if (!pcb) {
+        await new Promise(r => setTimeout(r, 1));
+        continue;
+      }
+      await this.runProcess(pcb);
+      if (!pcb.exited) {
+        this.readyQueue.push(pcb);
+      }
+    }
   }
 }

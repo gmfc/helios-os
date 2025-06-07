@@ -1,6 +1,10 @@
-use rusqlite::{Connection, params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::Value;
+use std::sync::Once;
+use std::time::Duration;
 use tauri::api::path::app_dir;
+use tokio::time::timeout;
+use v8;
 
 #[tauri::command]
 fn save_fs(json: String) -> Result<(), String> {
@@ -27,9 +31,40 @@ fn load_fs() -> Result<Option<Value>, String> {
     Ok(result.map(|s| serde_json::from_str(&s).unwrap()))
 }
 
+static INIT: Once = Once::new();
+
+fn init_v8() {
+    INIT.call_once(|| {
+        let platform = v8::new_default_platform(0, false).make_shared();
+        v8::V8::initialize_platform(platform);
+        v8::V8::initialize();
+    });
+}
+
+#[tauri::command]
+async fn run_isolate(code: String, quota_ms: u64, quota_mem: usize) -> Result<i32, String> {
+    init_v8();
+    let task = tokio::task::spawn_blocking(move || {
+        let mut isolate = v8::Isolate::new(v8::CreateParams::default().heap_limits(0, quota_mem));
+        let handle_scope = &mut v8::HandleScope::new(&mut isolate);
+        let context = v8::Context::new(handle_scope, Default::default());
+        let scope = &mut v8::ContextScope::new(handle_scope, context);
+        let code_str = v8::String::new(scope, &code).ok_or("bad code")?;
+        let script = v8::Script::compile(scope, code_str, None).ok_or("compile")?;
+        let value = script.run(scope).ok_or("run")?;
+        Ok(value.int32_value(scope).unwrap_or_default())
+    });
+    match timeout(Duration::from_millis(quota_ms), task).await {
+        Ok(Ok(Ok(v))) => Ok(v),
+        Ok(Ok(Err(e))) => Err(e.to_string()),
+        Ok(Err(e)) => Err(e.to_string()),
+        Err(_) => Err("timeout".into()),
+    }
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![save_fs, load_fs])
+        .invoke_handler(tauri::generate_handler![save_fs, load_fs, run_isolate])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
