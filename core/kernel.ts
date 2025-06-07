@@ -6,6 +6,7 @@ import {
   loadSnapshot,
   createPersistHook,
   loadKernelSnapshot,
+  persistKernelSnapshot,
 } from './fs/sqlite';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
@@ -275,6 +276,9 @@ export class Kernel {
           return this.syscall_draw(args[0], args[1]);
         case 'snapshot':
           return this.snapshot();
+        case 'save_snapshot':
+          persistKernelSnapshot(this.snapshot());
+          return 0;
         default:
           throw new Error(`Unknown syscall: ${call}`);
       }
@@ -474,6 +478,7 @@ export class Kernel {
   }
 
   public stop(): void {
+    persistKernelSnapshot(this.snapshot());
     this.running = false;
   }
 }
