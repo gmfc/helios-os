@@ -1,16 +1,17 @@
-const { Kernel } = require('../core/kernel');
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const tar = require('tar');
+import { Kernel } from '../core/kernel';
+import * as fs from 'node:fs/promises';
+import path from 'node:path';
+import tar from 'tar';
+import { fileURLToPath } from 'node:url';
 
-async function snap(outPath: string) {
+export async function snap(outPath: string) {
   const kernel = await Kernel.create();
   const state = kernel.snapshot();
   await fs.writeFile(outPath, JSON.stringify(state, null, 2));
   console.log(`Snapshot saved to ${outPath}`);
 }
 
-async function makepkg(dir: string) {
+export async function makepkg(dir: string) {
   const metaPath = path.join(dir, 'pkg.json');
   const raw = await fs.readFile(metaPath, 'utf-8');
   const meta = JSON.parse(raw);
@@ -19,7 +20,7 @@ async function makepkg(dir: string) {
   console.log(`Package created: ${outName}`);
 }
 
-async function main() {
+export async function main() {
   const [command, arg] = process.argv.slice(2);
   if (!command) {
     console.log('Usage: helios <snap|makepkg> <path>');
@@ -40,8 +41,9 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
-
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
+}
