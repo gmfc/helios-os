@@ -26,15 +26,22 @@ export type FileSystemSnapshot = {
   nodes: Map<string, FileSystemNode>;
 };
 
+export type Mount = {
+  image: FileSystemSnapshot;
+  path: string;
+};
+
 export type PersistHook = (snapshot: FileSystemSnapshot) => void;
 
 export class InMemoryFileSystem {
   private root: FileSystemNode;
   private nodes: Map<string, FileSystemNode>;
+  private mounts: Map<string, Mount>;
   private persistHook?: PersistHook;
 
   constructor(snapshot?: FileSystemSnapshot, persistHook?: PersistHook) {
     this.persistHook = persistHook;
+    this.mounts = new Map();
     if (snapshot) {
         this.root = this.deserialize(snapshot).root;
         this.nodes = this.deserialize(snapshot).nodes;
@@ -63,6 +70,19 @@ export class InMemoryFileSystem {
     this.createDirectory('/bin', 0o755);
     this.createFile('/bin/cat', CAT_SOURCE, 0o755);
     this.createFile('/bin/echo', ECHO_SOURCE, 0o755);
+
+    const bundled = (globalThis as any).BUNDLED_DISK_IMAGES as
+      | Array<{ image: FileSystemSnapshot; path: string }>
+      | undefined;
+    if (bundled) {
+      for (const m of bundled) {
+        try {
+          this.mount(m.image, m.path);
+        } catch (e) {
+          console.error('Failed to mount bundled image', m.path, e);
+        }
+      }
+    }
 
     this.persist();
   }
@@ -179,6 +199,48 @@ export class InMemoryFileSystem {
    */
   public getNode(path: string): FileSystemNode | undefined {
     return this.nodes.get(path);
+  }
+
+  public mount(image: FileSystemSnapshot, path: string): void {
+    const snap = this.deserialize(image);
+    let mountPoint = this.nodes.get(path);
+    if (!mountPoint) {
+      mountPoint = this.createDirectory(path, snap.root.permissions);
+    } else if (mountPoint.kind !== 'dir') {
+      throw new Error(`ENOTDIR: mount point is not a directory, mount '${path}'`);
+    }
+
+    const entries = Array.from(snap.nodes.values()).sort(
+      (a, b) => a.path.split('/').length - b.path.split('/').length,
+    );
+    for (const node of entries) {
+      if (node.path === '/') continue;
+      const newPath = path + (node.path === '/' ? '' : node.path);
+      if (this.nodes.has(newPath)) {
+        throw new Error(`EEXIST: file already exists, mount '${newPath}'`);
+      }
+      const parentPath = this.getParentPath(newPath);
+      const parent = this.nodes.get(parentPath);
+      if (!parent || parent.kind !== 'dir') {
+        throw new Error(`ENOENT: no such directory, mount '${parentPath}'`);
+      }
+      const copy: FileSystemNode = {
+        path: newPath,
+        kind: node.kind,
+        permissions: node.permissions,
+        uid: node.uid,
+        gid: node.gid,
+        createdAt: new Date(node.createdAt),
+        modifiedAt: new Date(node.modifiedAt),
+        data: node.kind === 'file' && node.data ? new Uint8Array(node.data) : undefined,
+        children: node.kind === 'dir' ? new Map() : undefined,
+      };
+      parent.children?.set(this.getBaseName(newPath), copy);
+      this.nodes.set(newPath, copy);
+    }
+
+    this.mounts.set(path, { image, path });
+    this.persist();
   }
 
   private persist() {

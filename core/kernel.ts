@@ -175,6 +175,28 @@ export class Kernel {
       }
     }
 
+    const needsRead = flags.includes('r');
+    const needsWrite = flags.includes('w') || flags.includes('a');
+    if (node) {
+      const perm = node.permissions;
+      let rights = 0;
+      if (pcb.uid === 0) {
+        rights = 7;
+      } else if (pcb.uid === node.uid) {
+        rights = (perm >> 6) & 7;
+      } else if (pcb.gid === node.gid) {
+        rights = (perm >> 3) & 7;
+      } else {
+        rights = perm & 7;
+      }
+      if (needsRead && !(rights & 4)) {
+        throw new Error('EACCES: permission denied');
+      }
+      if (needsWrite && !(rights & 2)) {
+        throw new Error('EACCES: permission denied');
+      }
+    }
+
     const fd = pcb.nextFd++;
     let position = 0;
     if (flags.includes('a') && node.data) {
