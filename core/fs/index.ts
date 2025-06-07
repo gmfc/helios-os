@@ -38,6 +38,7 @@ export type FileSystemSnapshot = {
 export type Mount = {
   image: FileSystemSnapshot;
   path: string;
+  createdMountPoint: boolean;
 };
 
 export type PersistHook = (snapshot: FileSystemSnapshot) => void;
@@ -227,8 +228,10 @@ export class InMemoryFileSystem {
   public mount(image: FileSystemSnapshot, path: string): void {
     const snap = this.deserialize(image);
     let mountPoint = this.nodes.get(path);
+    let createdMount = false;
     if (!mountPoint) {
       mountPoint = this.createDirectory(path, snap.root.permissions);
+      createdMount = true;
     } else if (mountPoint.kind !== 'dir') {
       throw new Error(`ENOTDIR: mount point is not a directory, mount '${path}'`);
     }
@@ -262,7 +265,41 @@ export class InMemoryFileSystem {
       this.nodes.set(newPath, copy);
     }
 
-    this.mounts.set(path, { image, path });
+    this.mounts.set(path, { image, path, createdMountPoint: createdMount });
+    this.persist();
+  }
+
+  public unmount(path: string): void {
+    const mount = this.mounts.get(path);
+    if (!mount) {
+      throw new Error(`EINVAL: not a mount point, unmount '${path}'`);
+    }
+
+    const snap = this.deserialize(mount.image);
+    const entries = Array.from(snap.nodes.values()).sort(
+      (a, b) => b.path.split('/').length - a.path.split('/').length,
+    );
+
+    for (const node of entries) {
+      if (node.path === '/') continue;
+      const targetPath = path + (node.path === '/' ? '' : node.path);
+      const parentPath = this.getParentPath(targetPath);
+      const parent = this.nodes.get(parentPath);
+      parent?.children?.delete(this.getBaseName(targetPath));
+      this.nodes.delete(targetPath);
+    }
+
+    const mountPoint = this.nodes.get(path);
+    if (mountPoint && mount.createdMountPoint) {
+      if (!mountPoint.children || mountPoint.children.size === 0) {
+        const parentPath = this.getParentPath(path);
+        const parent = this.nodes.get(parentPath);
+        parent?.children?.delete(this.getBaseName(path));
+        this.nodes.delete(path);
+      }
+    }
+
+    this.mounts.delete(path);
     this.persist();
   }
 
