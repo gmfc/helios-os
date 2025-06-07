@@ -1,20 +1,19 @@
 use rusqlite::Connection;
-use tauri::api::dialog;
 use tauri::api::path::app_dir;
 
 /// Open the snapshot database connection creating the DB if needed.
-/// Errors are logged using a dialog message.
+/// Errors are logged to stderr.
 pub fn snapshot() -> Result<Connection, String> {
     let dir = match app_dir(&tauri::Config::default()) {
         Some(d) => d,
         None => {
-            dialog::message(None, "Database Error", "no app dir");
+            eprintln!("Database Error: no app dir");
             return Err("no app dir".into());
         }
     };
     if let Err(e) = std::fs::create_dir_all(&dir) {
         let msg = e.to_string();
-        dialog::message(None, "Database Error", &msg);
+        eprintln!("Database Error: {}", msg);
         return Err(msg);
     }
     let db_path = dir.join("snapshot.db");
@@ -22,7 +21,7 @@ pub fn snapshot() -> Result<Connection, String> {
         Ok(c) => c,
         Err(e) => {
             let msg = e.to_string();
-            dialog::message(None, "Database Error", &msg);
+            eprintln!("Database Error: {}", msg);
             return Err(msg);
         }
     };
@@ -31,25 +30,25 @@ pub fn snapshot() -> Result<Connection, String> {
         [],
     ) {
         let msg = e.to_string();
-        dialog::message(None, "Database Error", &msg);
+        eprintln!("Database Error: {}", msg);
         return Err(msg);
     }
     Ok(conn)
 }
 
 /// Open the filesystem database connection creating the DB if needed.
-/// Errors are logged using a dialog message.
+/// Errors are logged to stderr.
 pub fn fs() -> Result<Connection, String> {
     let dir = match app_dir(&tauri::Config::default()) {
         Some(d) => d,
         None => {
-            dialog::message(None, "Database Error", "no app dir");
+            eprintln!("Database Error: no app dir");
             return Err("no app dir".into());
         }
     };
     if let Err(e) = std::fs::create_dir_all(&dir) {
         let msg = e.to_string();
-        dialog::message(None, "Database Error", &msg);
+        eprintln!("Database Error: {}", msg);
         return Err(msg);
     }
     let db_path = dir.join("fs.db");
@@ -57,7 +56,7 @@ pub fn fs() -> Result<Connection, String> {
         Ok(c) => c,
         Err(e) => {
             let msg = e.to_string();
-            dialog::message(None, "Database Error", &msg);
+            eprintln!("Database Error: {}", msg);
             return Err(msg);
         }
     };
@@ -66,7 +65,7 @@ pub fn fs() -> Result<Connection, String> {
         [],
     ) {
         let msg = e.to_string();
-        dialog::message(None, "Database Error", &msg);
+        eprintln!("Database Error: {}", msg);
         return Err(msg);
     }
     Ok(conn)
