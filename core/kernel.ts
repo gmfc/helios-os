@@ -5,6 +5,9 @@ import { InMemoryFileSystem, FileSystemNode } from './fs';
 import { loadSnapshot, createPersistHook } from './fs/sqlite';
 import { invoke } from '@tauri-apps/api/tauri';
 import { eventBus } from './eventBus';
+import { NIC } from './net/nic';
+import { TCP } from './net/tcp';
+import { UDP } from './net/udp';
 
 type ProcessID = number;
 type FileDescriptor = number;
@@ -69,9 +72,9 @@ export class Kernel {
   private fs: InMemoryFileSystem;
   private processes: Map<ProcessID, ProcessControlBlock>;
   private nextPid: ProcessID;
-  private services: Map<number, { proto: string; handler: ServiceHandler }>;
-  private sockets: Map<number, { ip: string; port: number }>;
-  private nextSocketId: number;
+  private nics: Map<string, NIC>;
+  private tcp: TCP;
+  private udp: UDP;
   private windows: Array<{ html: Uint8Array; opts: WindowOpts }>;
   private readyQueue: ProcessControlBlock[];
   private running = false;
@@ -80,9 +83,9 @@ export class Kernel {
     this.fs = fs;
     this.processes = new Map();
     this.nextPid = 1;
-    this.services = new Map();
-    this.sockets = new Map();
-    this.nextSocketId = 1;
+    this.nics = new Map();
+    this.tcp = new TCP();
+    this.udp = new UDP();
     this.windows = [];
     this.readyQueue = [];
   }
@@ -90,7 +93,10 @@ export class Kernel {
   public static async create(): Promise<Kernel> {
     const snapshot = await loadSnapshot();
     const fs = new InMemoryFileSystem(snapshot ?? undefined, createPersistHook());
-    return new Kernel(fs);
+    const kernel = new Kernel(fs);
+    const lo = new NIC('lo0', '00:00:00:00:00:00', '127.0.0.1');
+    kernel.nics.set(lo.id, lo);
+    return kernel;
   }
 
   public async spawn(command: string, opts: SpawnOpts = {}): Promise<number> {
@@ -271,14 +277,17 @@ export class Kernel {
   }
 
   private syscall_listen(port: number, proto: string, cb: ServiceHandler): number {
-    this.services.set(port, { proto, handler: cb });
-    return port;
+    if (proto === 'tcp') {
+      return this.tcp.listen(port, cb);
+    }
+    if (proto === 'udp') {
+      return this.udp.listen(port, cb);
+    }
+    throw new Error('Unsupported protocol');
   }
 
   private syscall_connect(ip: string, port: number): number {
-    const id = this.nextSocketId++;
-    this.sockets.set(id, { ip, port });
-    return id;
+    return this.tcp.connect(ip, port);
   }
 
   private syscall_draw(html: Uint8Array, opts: WindowOpts): number {
@@ -305,11 +314,8 @@ export class Kernel {
     const state = {
       fs: fsSnapshot,
       processes: this.processes,
-      services: this.services,
-      sockets: this.sockets,
       windows: this.windows,
       nextPid: this.nextPid,
-      nextSocketId: this.nextSocketId,
     };
     return JSON.parse(JSON.stringify(state, replacer));
   }
