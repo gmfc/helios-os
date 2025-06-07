@@ -4,12 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "concurrently \"pnpm:dev:ui\" \"pnpm:dev:host\"",
-    "dev:ui": "esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --servedir=. --watch --serve=:1420",
+    "dev:ui": "esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --tsconfig=tsconfig.json --servedir=. --watch --serve=:1420",
     "dev:host": "sleep 5 && cd host && tauri dev",
-    "build": "esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --target=esnext --platform=browser",
+    "build": "esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --target=esnext --platform=browser --tsconfig=tsconfig.json",
     "build:release": "pnpm build && cd host && tauri build",
-    "helios": "ts-node tools/helios.ts",
-    "test": "esbuild core/fs/index.test.ts --bundle --platform=node --format=cjs --outfile=core/fs/index.test.js && node core/fs/index.test.js && rm core/fs/index.test.js"
+    "helios": "ts-node --project tsconfig.json tools/helios.ts",
+    "test": "esbuild core/fs/index.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/fs/index.test.js && node core/fs/index.test.js && rm core/fs/index.test.js"
   },
   "dependencies": {
     "@pablo-lion/xterm-react": "^1.1.2",
