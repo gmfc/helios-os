@@ -61,6 +61,7 @@ export const WindowManager = forwardRef<WindowManagerHandles, WindowManagerProps
           zIndex={index + 1}
           onResize={win.id === 0 ? onResize : undefined}
           onFocus={focusWindow}
+          onClose={closeWindow}
         >
           {win.content}
         </Window>
