@@ -9,3 +9,4 @@ This folder contains detailed guides covering each part of the project. Use the 
 - [Host Service](host.md)
 - [User Interface](ui.md)
 - [Developer Workflow](workflow.md)
+- [GUI, Shell and Sandbox Roadmap](gui_shell_sandbox.md)
