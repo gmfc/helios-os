@@ -124,13 +124,15 @@ export class Kernel {
     const kernel = new Kernel(fs);
     const lo = new NIC('lo0', '00:00:00:00:00:00', '127.0.0.1');
     kernel.nics.set(lo.id, lo);
-    listen('syscall', async (event: any) => {
-      const { id, pid, call, args } = event.payload as any;
-      const disp = dispatcherMap.get(pid);
-      if (!disp) return;
-      const result = await disp(call, ...args);
-      await invoke('syscall_response', { id, result });
-    });
+    if (typeof window !== 'undefined') {
+      listen('syscall', async (event: any) => {
+        const { id, pid, call, args } = event.payload as any;
+        const disp = dispatcherMap.get(pid);
+        if (!disp) return;
+        const result = await disp(call, ...args);
+        await invoke('syscall_response', { id, result });
+      });
+    }
     return kernel;
   }
 
@@ -167,13 +169,15 @@ export class Kernel {
       (kernel.udp as any).nextSocket = snapshot.udp.nextSocket ?? 1;
     }
 
-    listen('syscall', async (event: any) => {
-      const { id, pid, call, args } = event.payload as any;
-      const disp = dispatcherMap.get(pid);
-      if (!disp) return;
-      const result = await disp(call, ...args);
-      await invoke('syscall_response', { id, result });
-    });
+    if (typeof window !== 'undefined') {
+      listen('syscall', async (event: any) => {
+        const { id, pid, call, args } = event.payload as any;
+        const disp = dispatcherMap.get(pid);
+        if (!disp) return;
+        const result = await disp(call, ...args);
+        await invoke('syscall_response', { id, result });
+      });
+    }
 
     kernel.readyQueue = Array.from(kernel.processes.values()).filter(p => !p.exited);
 

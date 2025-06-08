@@ -1,7 +1,7 @@
 import { Kernel } from '../core/kernel';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
-import tar from 'tar';
+import * as tar from 'tar';
 import { fileURLToPath } from 'node:url';
 
 export async function snap(outPath: string) {
