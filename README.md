@@ -93,18 +93,28 @@ while (true) {
 
 *Timeslice and quotas enforced by the Rust host (kill isolate on overrun).*
 
-### 3.3 Syscall Bus (minimal list)
+### 3.3 Syscall Bus
 
 | Call                      | Description       |
 | ------------------------- | ----------------- |
 | `open(path, flags)`       | returns fd        |
 | `read(fd, n)`             | Uint8Array        |
 | `write(fd, bytes)`        | count             |
+| `close(fd)`               | releases handle   |
 | `spawn(code, opts)`       | new PID           |
 | `listen(port, proto, cb)` | service daemon    |
 | `connect(ip, port)`       | socket handle     |
+| `tcp_send(sock, bytes)`   | TCP send          |
+| `udp_send(sock, bytes)`   | UDP send          |
 | `draw(htmlBlob, opts)`    | open GUI window   |
+| `mkdir(path, perms)`      | create directory  |
+| `readdir(path)`           | list directory    |
+| `unlink(path)`            | remove file       |
+| `rename(old, new)`        | move/rename file  |
+| `mount(img, path)`        | attach disk image |
+| `unmount(path)`           | detach disk image |
 | `snapshot()`              | returns JSON blob |
+| `save_snapshot()`         | persist snapshot  |
 
 ---
 

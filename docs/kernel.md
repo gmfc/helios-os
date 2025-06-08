@@ -15,3 +15,28 @@ Processes are executed inside V8 isolates spawned by the host. Each process has 
 ### Snapshotting
 
 `core/fs/sqlite.ts` provides helpers to load and persist the entire kernel state. A snapshot is pure JSON that captures files, running processes and network connections. Loading a snapshot recreates the same environment deterministically.
+
+### Syscalls
+
+User programs interact with the kernel through an asynchronous syscall dispatcher. The table below lists all calls currently supported.
+
+| Call | Notes |
+| ---- | ----- |
+| `open(path, flags)` | open a file and return an fd |
+| `read(fd, n)` | read bytes from an fd |
+| `write(fd, bytes)` | write bytes to an fd |
+| `close(fd)` | close a file descriptor |
+| `spawn(code, opts)` | start a new process |
+| `listen(port, proto, cb)` | register a network service |
+| `connect(ip, port)` | obtain a socket handle |
+| `tcp_send(sock, bytes)` | send data over TCP |
+| `udp_send(sock, bytes)` | send data over UDP |
+| `draw(html, opts)` | open a GUI window |
+| `mkdir(path, perms)` | create a directory |
+| `readdir(path)` | list directory entries |
+| `unlink(path)` | remove a file or empty dir |
+| `rename(old, new)` | move or rename a node |
+| `mount(img, path)` | mount a disk image |
+| `unmount(path)` | unmount a disk image |
+| `snapshot()` | return the full machine state |
+| `save_snapshot()` | persist state to disk |

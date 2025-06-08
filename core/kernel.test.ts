@@ -14,6 +14,15 @@ async function run() {
   await startPromise;
   assert(ran, 'process should run');
   console.log('Kernel scheduler stop test passed.');
+
+  const img = new InMemoryFileSystem();
+  img.createFile('/foo.txt', 'bar', 0o644);
+  const snap = img.getSnapshot();
+  kernel['syscall_mount'](snap, '/mnt');
+  assert(kernel['fs'].getNode('/mnt/foo.txt'), 'file mounted');
+  kernel['syscall_unmount']('/mnt');
+  assert(!kernel['fs'].getNode('/mnt/foo.txt'), 'file unmounted');
+  console.log('Kernel mount/unmount test passed.');
 }
 
 run();
