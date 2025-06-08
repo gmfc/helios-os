@@ -272,6 +272,10 @@ export class Kernel {
           return this.syscall_listen(args[0], args[1], args[2]);
         case 'connect':
           return this.syscall_connect(args[0], args[1]);
+        case 'tcp_send':
+          return this.syscall_tcp_send(args[0], args[1]);
+        case 'udp_send':
+          return this.syscall_udp_send(args[0], args[1]);
         case 'draw':
           return this.syscall_draw(args[0], args[1]);
         case 'snapshot':
@@ -404,6 +408,14 @@ export class Kernel {
 
   private syscall_connect(ip: string, port: number): number {
     return this.tcp.connect(ip, port);
+  }
+
+  private async syscall_tcp_send(sock: number, data: Uint8Array) {
+    return this.tcp.send(sock, data);
+  }
+
+  private async syscall_udp_send(sock: number, data: Uint8Array) {
+    return this.udp.send(sock, data);
   }
 
   private syscall_draw(html: Uint8Array, opts: WindowOpts): number {
