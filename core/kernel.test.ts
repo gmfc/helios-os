@@ -19,9 +19,9 @@ async function run() {
   img.createFile('/foo.txt', 'bar', 0o644);
   const snap = img.getSnapshot();
   kernel['syscall_mount'](snap, '/mnt');
-  assert(kernel['fs'].getNode('/mnt/foo.txt'), 'file mounted');
+  assert(kernel['state'].fs.getNode('/mnt/foo.txt'), 'file mounted');
   kernel['syscall_unmount']('/mnt');
-  assert(!kernel['fs'].getNode('/mnt/foo.txt'), 'file unmounted');
+  assert(!kernel['state'].fs.getNode('/mnt/foo.txt'), 'file unmounted');
   console.log('Kernel mount/unmount test passed.');
 }
 

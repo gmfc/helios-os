@@ -90,27 +90,33 @@ const dispatcherMap: Map<ProcessID, SyscallDispatcher> = new Map();
 /**
  * The Helios-OS Kernel, responsible for process, file, and system management.
  */
+export interface KernelState {
+  fs: InMemoryFileSystem;
+  processes: Map<ProcessID, ProcessControlBlock>;
+  nextPid: ProcessID;
+  nics: Map<string, NIC>;
+  tcp: TCP;
+  udp: UDP;
+  windows: Array<{ html: Uint8Array; opts: WindowOpts }>;
+  services: Map<string, { port: number; proto: string }>;
+}
+
 export class Kernel {
-  private fs: InMemoryFileSystem;
-  private processes: Map<ProcessID, ProcessControlBlock>;
-  private nextPid: ProcessID;
-  private nics: Map<string, NIC>;
-  private tcp: TCP;
-  private udp: UDP;
-  private windows: Array<{ html: Uint8Array; opts: WindowOpts }>;
-  private services: Map<string, { port: number; proto: string }>;
+  private state: KernelState;
   private readyQueue: ProcessControlBlock[];
   private running = false;
 
   private constructor(fs: InMemoryFileSystem) {
-    this.fs = fs;
-    this.processes = new Map();
-    this.nextPid = 1;
-    this.nics = new Map();
-    this.tcp = new TCP();
-    this.udp = new UDP();
-    this.windows = [];
-    this.services = new Map();
+    this.state = {
+      fs,
+      processes: new Map(),
+      nextPid: 1,
+      nics: new Map(),
+      tcp: new TCP(),
+      udp: new UDP(),
+      windows: [],
+      services: new Map(),
+    };
     this.readyQueue = [];
   }
 
@@ -126,7 +132,7 @@ export class Kernel {
         : bootstrapFileSystem();
     const kernel = new Kernel(fs);
     const lo = new NIC('lo0', '00:00:00:00:00:00', '127.0.0.1');
-    kernel.nics.set(lo.id, lo);
+    kernel.state.nics.set(lo.id, lo);
     if (typeof window !== 'undefined') {
       listen('syscall', async (event: any) => {
         const { id, pid, call, args } = event.payload as any;
@@ -143,33 +149,33 @@ export class Kernel {
     const fs = new InMemoryFileSystem(snapshot.fs ?? undefined, createPersistHook());
     const kernel = new Kernel(fs);
 
-    kernel.processes = new Map(snapshot.processes ?? []);
-    kernel.nextPid = snapshot.nextPid ?? 1;
-    kernel.windows = snapshot.windows ?? [];
-    kernel.services = new Map(snapshot.services ?? []);
+    kernel.state.processes = new Map(snapshot.processes ?? []);
+    kernel.state.nextPid = snapshot.nextPid ?? 1;
+    kernel.state.windows = snapshot.windows ?? [];
+    kernel.state.services = new Map(snapshot.services ?? []);
 
-    kernel.nics = new Map();
+    kernel.state.nics = new Map();
     if (snapshot.nics) {
       for (const [id, nic] of snapshot.nics) {
         const n = new NIC(nic.id, nic.mac, nic.ip);
         n.rx = nic.rx ?? [];
         n.tx = nic.tx ?? [];
-        kernel.nics.set(id, n);
+        kernel.state.nics.set(id, n);
       }
     }
 
-    kernel.tcp = new TCP();
+    kernel.state.tcp = new TCP();
     if (snapshot.tcp) {
-      (kernel.tcp as any).listeners = new Map(snapshot.tcp.listeners ?? []);
-      (kernel.tcp as any).sockets = new Map(snapshot.tcp.sockets ?? []);
-      (kernel.tcp as any).nextSocket = snapshot.tcp.nextSocket ?? 1;
+      (kernel.state.tcp as any).listeners = new Map(snapshot.tcp.listeners ?? []);
+      (kernel.state.tcp as any).sockets = new Map(snapshot.tcp.sockets ?? []);
+      (kernel.state.tcp as any).nextSocket = snapshot.tcp.nextSocket ?? 1;
     }
 
-    kernel.udp = new UDP();
+    kernel.state.udp = new UDP();
     if (snapshot.udp) {
-      (kernel.udp as any).listeners = new Map(snapshot.udp.listeners ?? []);
-      (kernel.udp as any).sockets = new Map(snapshot.udp.sockets ?? []);
-      (kernel.udp as any).nextSocket = snapshot.udp.nextSocket ?? 1;
+      (kernel.state.udp as any).listeners = new Map(snapshot.udp.listeners ?? []);
+      (kernel.state.udp as any).sockets = new Map(snapshot.udp.sockets ?? []);
+      (kernel.state.udp as any).nextSocket = snapshot.udp.nextSocket ?? 1;
     }
 
     if (typeof window !== 'undefined') {
@@ -182,7 +188,7 @@ export class Kernel {
       });
     }
 
-    kernel.readyQueue = Array.from(kernel.processes.values()).filter(p => !p.exited);
+    kernel.readyQueue = Array.from(kernel.state.processes.values()).filter(p => !p.exited);
 
     return kernel;
   }
@@ -194,7 +200,7 @@ export class Kernel {
 
     let source: string;
     try {
-      const node = this.fs.getNode(path);
+      const node = this.state.fs.getNode(path);
       if (!node || node.kind !== 'file' || !node.data) {
         throw new Error();
       }
@@ -206,7 +212,7 @@ export class Kernel {
 
     let manifestSyscalls: string[] | undefined;
     try {
-      const mnode = this.fs.getNode(manifestPath);
+      const mnode = this.state.fs.getNode(manifestPath);
       if (mnode && mnode.kind === 'file' && mnode.data) {
         const { syscalls } = JSON.parse(new TextDecoder().decode(mnode.data));
         if (Array.isArray(syscalls)) manifestSyscalls = syscalls;
@@ -218,22 +224,26 @@ export class Kernel {
 
   public registerService(name: string, port: number, proto: string, handler: ServiceHandler): void {
     this.syscall_listen(port, proto, handler);
-    this.services.set(name, { port, proto });
+    const services = new Map(this.state.services);
+    services.set(name, { port, proto });
+    this.state = { ...this.state, services };
   }
 
   public stopService(name: string): void {
-    const svc = this.services.get(name);
+    const svc = this.state.services.get(name);
     if (!svc) return;
     if (svc.proto === 'tcp') {
-      this.tcp.unlisten(svc.port);
+      this.state.tcp.unlisten(svc.port);
     } else if (svc.proto === 'udp') {
-      this.udp.unlisten(svc.port);
+      this.state.udp.unlisten(svc.port);
     }
-    this.services.delete(name);
+    const services = new Map(this.state.services);
+    services.delete(name);
+    this.state = { ...this.state, services };
   }
 
   private createProcess(): ProcessID {
-    const pid = this.nextPid++;
+    const pid = this.state.nextPid++;
     const pcb: ProcessControlBlock = {
       pid,
       uid: 1000,
@@ -245,17 +255,21 @@ export class Kernel {
       nextFd: 3, // 0, 1, 2 are reserved for stdio
       exited: false,
     };
-    this.processes.set(pid, pcb);
+    const processes = new Map(this.state.processes);
+    processes.set(pid, pcb);
+    this.state = { ...this.state, processes };
     return pid;
   }
 
   private cleanupProcess(pid: ProcessID) {
-    this.processes.delete(pid);
+    const processes = new Map(this.state.processes);
+    processes.delete(pid);
+    this.state = { ...this.state, processes };
   }
 
   private createSyscallDispatcher(pid: ProcessID): SyscallDispatcher {
     return async (call: string, ...args: any[]): Promise<any> => {
-      const pcb = this.processes.get(pid);
+      const pcb = this.state.processes.get(pid);
       if (!pcb) {
         throw new Error(`Invalid PID ${pid} for syscall`);
       }
@@ -311,10 +325,12 @@ export class Kernel {
   // --- Syscall Implementations ---
 
   private syscall_open(pcb: ProcessControlBlock, path: string, flags: string): FileDescriptor {
-    let node = this.fs.getNode(path);
+    let node = this.state.fs.getNode(path);
     if (!node) {
       if (flags.includes('w') || flags.includes('a')) {
-        node = this.fs.createFile(path, new Uint8Array(), 0o644);
+        const fsClone = this.state.fs.clone();
+        node = fsClone.createFile(path, new Uint8Array(), 0o644);
+        this.state.fs = fsClone;
       } else {
         throw new Error(`ENOENT: no such file or directory, open '${path}'`);
       }
@@ -386,10 +402,12 @@ export class Kernel {
     newData.set(before, 0);
     newData.set(data, before.length);
     newData.set(after, before.length + data.length);
-    node.data = newData;
+    const fsClone = this.state.fs.clone();
+    const target = fsClone.getNode(node.path)!;
+    target.data = newData;
+    target.modifiedAt = new Date();
     entry.position += data.length;
-    node.modifiedAt = new Date();
-    this.fs.writeFile(node.path, node.data);
+    this.state.fs = fsClone;
     return data.length;
   }
 
@@ -403,7 +421,7 @@ export class Kernel {
 
   private async syscall_spawn(code: string, opts: SpawnOpts = {}): Promise<number> {
     const pid = this.createProcess();
-    const pcb = this.processes.get(pid)!;
+    const pcb = this.state.processes.get(pid)!;
     if (opts.uid !== undefined) pcb.uid = opts.uid;
     if (opts.gid !== undefined) pcb.gid = opts.gid;
     if (opts.quotaMs !== undefined) pcb.quotaMs = opts.quotaMs;
@@ -417,29 +435,31 @@ export class Kernel {
 
   private syscall_listen(port: number, proto: string, cb: ServiceHandler): number {
     if (proto === 'tcp') {
-      return this.tcp.listen(port, cb);
+      return this.state.tcp.listen(port, cb);
     }
     if (proto === 'udp') {
-      return this.udp.listen(port, cb);
+      return this.state.udp.listen(port, cb);
     }
     throw new Error('Unsupported protocol');
   }
 
   private syscall_connect(ip: string, port: number): number {
-    return this.tcp.connect(ip, port);
+    return this.state.tcp.connect(ip, port);
   }
 
   private async syscall_tcp_send(sock: number, data: Uint8Array) {
-    return this.tcp.send(sock, data);
+    return this.state.tcp.send(sock, data);
   }
 
   private async syscall_udp_send(sock: number, data: Uint8Array) {
-    return this.udp.send(sock, data);
+    return this.state.udp.send(sock, data);
   }
 
   private syscall_draw(html: Uint8Array, opts: WindowOpts): number {
-    const id = this.windows.length;
-    this.windows.push({ html, opts });
+    const id = this.state.windows.length;
+    const windows = this.state.windows.slice();
+    windows.push({ html, opts });
+    this.state = { ...this.state, windows };
     const payload = {
       id,
       html: new TextDecoder().decode(html),
@@ -450,31 +470,41 @@ export class Kernel {
   }
 
   private syscall_mkdir(path: string, perms: number): number {
-    this.fs.createDirectory(path, perms);
+    const fsClone = this.state.fs.clone();
+    fsClone.createDirectory(path, perms);
+    this.state.fs = fsClone;
     return 0;
   }
 
   private syscall_readdir(path: string): FileSystemNode[] {
-    return this.fs.listDirectory(path);
+    return this.state.fs.listDirectory(path);
   }
 
   private syscall_unlink(path: string): number {
-    this.fs.remove(path);
+    const fsClone = this.state.fs.clone();
+    fsClone.remove(path);
+    this.state.fs = fsClone;
     return 0;
   }
 
   private syscall_rename(oldPath: string, newPath: string): number {
-    this.fs.rename(oldPath, newPath);
+    const fsClone = this.state.fs.clone();
+    fsClone.rename(oldPath, newPath);
+    this.state.fs = fsClone;
     return 0;
   }
 
   private syscall_mount(image: FileSystemSnapshot, path: string): number {
-    this.fs.mount(image, path);
+    const fsClone = this.state.fs.clone();
+    fsClone.mount(image, path);
+    this.state.fs = fsClone;
     return 0;
   }
 
   private syscall_unmount(path: string): number {
-    this.fs.unmount(path);
+    const fsClone = this.state.fs.clone();
+    fsClone.unmount(path);
+    this.state.fs = fsClone;
     return 0;
   }
 
@@ -486,16 +516,16 @@ export class Kernel {
       return value;
     };
 
-    const fsSnapshot = this.fs.getSnapshot();
+    const fsSnapshot = this.state.fs.getSnapshot();
     const state: Snapshot = {
       fs: fsSnapshot,
-      processes: this.processes,
-      windows: this.windows,
-      nextPid: this.nextPid,
-      nics: this.nics,
-      tcp: this.tcp,
-      udp: this.udp,
-      services: this.services,
+      processes: this.state.processes,
+      windows: this.state.windows,
+      nextPid: this.state.nextPid,
+      nics: this.state.nics,
+      tcp: this.state.tcp,
+      udp: this.state.udp,
+      services: this.state.services,
     };
 
     return JSON.parse(JSON.stringify(state, replacer));
