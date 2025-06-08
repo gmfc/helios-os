@@ -2,6 +2,7 @@
 // Implementation to follow based on the project roadmap. 
 
 import { InMemoryFileSystem, FileSystemNode, FileSystemSnapshot } from './fs';
+import { bootstrapFileSystem } from './fs/pure';
 import {
   loadSnapshot,
   createPersistHook,
@@ -120,7 +121,9 @@ export class Kernel {
     }
 
     const snapshot = await loadSnapshot();
-    const fs = new InMemoryFileSystem(snapshot ?? undefined, createPersistHook());
+    const fs = snapshot
+        ? new InMemoryFileSystem(snapshot, createPersistHook())
+        : bootstrapFileSystem();
     const kernel = new Kernel(fs);
     const lo = new NIC('lo0', '00:00:00:00:00:00', '127.0.0.1');
     kernel.nics.set(lo.id, lo);

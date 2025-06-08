@@ -233,6 +233,13 @@ export class InMemoryFileSystem {
     return this.serialize();
   }
 
+  /**
+   * Create a deep copy of the filesystem preserving the persist hook.
+   */
+  public clone(): InMemoryFileSystem {
+    return new InMemoryFileSystem(this.getSnapshot(), this.persistHook);
+  }
+
   public mount(image: FileSystemSnapshot, path: string): void {
     const snap = this.deserialize(image);
     let mountPoint = this.nodes.get(path);
