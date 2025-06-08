@@ -4,6 +4,7 @@ import { XTerm } from '@pablo-lion/xterm-react';
 import { ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import 'react-resizable/css/styles.css';
+import '@xterm/xterm/css/xterm.css';
 
 import { Kernel } from '../core/kernel';
 import { WindowManager, WindowManagerHandles } from './components/WindowManager';
