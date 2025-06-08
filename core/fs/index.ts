@@ -4,11 +4,13 @@ import {
   NANO_SOURCE,
   BROWSER_SOURCE,
   PING_SOURCE,
+  DESKTOP_SOURCE,
   CAT_MANIFEST,
   ECHO_MANIFEST,
   NANO_MANIFEST,
   BROWSER_MANIFEST,
   PING_MANIFEST,
+  DESKTOP_MANIFEST,
 } from './bin';
 import { createPersistHook } from './sqlite';
 
@@ -91,6 +93,8 @@ export class InMemoryFileSystem {
     this.createFile('/bin/browser.manifest.json', BROWSER_MANIFEST, 0o644);
     this.createFile('/bin/ping', PING_SOURCE, 0o755);
     this.createFile('/bin/ping.manifest.json', PING_MANIFEST, 0o644);
+    this.createFile('/bin/desktop', DESKTOP_SOURCE, 0o755);
+    this.createFile('/bin/desktop.manifest.json', DESKTOP_MANIFEST, 0o644);
 
     const bundled = (globalThis as any).BUNDLED_DISK_IMAGES as
       | Array<{ image: FileSystemSnapshot; path: string }>
