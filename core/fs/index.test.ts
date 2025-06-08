@@ -37,3 +37,18 @@ function testUnmount() {
 testSnapshot();
 testUnmount();
 
+function testDirOps() {
+    const fs = new InMemoryFileSystem();
+    fs.createDirectory('/dir', 0o755);
+    fs.createFile('/dir/file.txt', 'data', 0o644);
+    const list = fs.listDirectory('/dir');
+    assert(list.some(n => n.path === '/dir/file.txt'), 'file listed');
+    fs.rename('/dir/file.txt', '/dir/renamed.txt');
+    assert(fs.getNode('/dir/renamed.txt'), 'rename works');
+    fs.remove('/dir/renamed.txt');
+    assert(!fs.getNode('/dir/renamed.txt'), 'file removed');
+    console.log('Directory ops test passed.');
+}
+
+testDirOps();
+
