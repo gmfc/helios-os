@@ -20,12 +20,12 @@ export class TCP {
     return id;
   }
 
-  send(sock: number, data: Uint8Array) {
+  async send(sock: number, data: Uint8Array): Promise<Uint8Array | void> {
     const dst = this.sockets.get(sock);
     if (!dst) return;
     const handler = this.listeners.get(dst.port);
     if (handler) {
-      handler(data);
+      return await handler(data);
     }
   }
 }

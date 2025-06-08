@@ -58,7 +58,22 @@ function testRouter() {
     console.log('Router forward test passed.');
 }
 
-testTcp();
-testUdp();
-testSwitch();
-testRouter();
+async function testTcpEcho() {
+    const tcp = new TCP();
+    tcp.listen(9000, data => data);
+    const sock = tcp.connect('127.0.0.1', 9000);
+    const payload = new Uint8Array([9, 8, 7]);
+    const resp = await tcp.send(sock, payload);
+    assert(resp && resp.length === 3 && resp[0] === 9, 'TCP send returns response');
+    console.log('TCP send response test passed.');
+}
+
+async function run() {
+    testTcp();
+    testUdp();
+    testSwitch();
+    testRouter();
+    await testTcpEcho();
+}
+
+run();
