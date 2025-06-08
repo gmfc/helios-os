@@ -10,6 +10,7 @@ interface WindowProps {
   initialSize?: { width: number; height: number };
   onResize?: (size: { width: number, height: number }) => void;
   onFocus?: (id: number) => void;
+  onClose?: (id: number) => void;
   zIndex?: number;
   children: React.ReactNode;
 }
@@ -21,6 +22,7 @@ export const Window: React.FC<WindowProps> = ({
   initialSize = { width: 720, height: 500 },
   onResize,
   onFocus,
+  onClose,
   zIndex,
   children,
 }) => {
@@ -58,7 +60,7 @@ export const Window: React.FC<WindowProps> = ({
         >
           <div className="window-title-bar">
             <div className="window-buttons">
-              <div className="window-button" />
+              <div className="window-button" onClick={() => onClose?.(id)} />
               <div className="window-button" />
               <div className="window-button" />
             </div>
