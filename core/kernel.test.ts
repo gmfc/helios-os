@@ -33,6 +33,10 @@ async function run() {
     assert(e.message.includes('EISDIR'), 'EISDIR error expected');
     console.log('Kernel open directory test passed.');
   }
+
+  const list = kernel['syscall_ps']();
+  assert(Array.isArray(list) && list.length > 0, 'ps should return processes');
+  console.log('Kernel ps syscall test passed.');
 }
 
 run();

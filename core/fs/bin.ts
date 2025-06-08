@@ -259,6 +259,16 @@ export const MV_SOURCE = `
   }
 `;
 
+export const PS_SOURCE = `
+  async (syscall, argv) => {
+    const STDOUT_FD = 1;
+    const procs = await syscall('ps');
+    const lines = procs.map(p => p.pid + ' ' + (p.argv ? p.argv.join(' ') : '')).join('\n') + '\n';
+    await syscall('write', STDOUT_FD, new TextEncoder().encode(lines));
+    return 0;
+  }
+`;
+
 
 export const CAT_MANIFEST = JSON.stringify({
   name: 'cat',
@@ -308,5 +318,10 @@ export const RM_MANIFEST = JSON.stringify({
 export const MV_MANIFEST = JSON.stringify({
   name: 'mv',
   syscalls: ['rename', 'write']
+});
+
+export const PS_MANIFEST = JSON.stringify({
+  name: 'ps',
+  syscalls: ['ps', 'write']
 });
 

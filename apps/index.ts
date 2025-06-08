@@ -8,6 +8,7 @@ export * from './ls';
 export * from './mkdir';
 export * from './rm';
 export * from './mv';
+export * from './ps';
 
 import {
   NANO_SOURCE,
@@ -18,6 +19,7 @@ import {
   MKDIR_SOURCE,
   RM_SOURCE,
   MV_SOURCE,
+  PS_SOURCE,
 } from '../core/fs/bin';
 
 export const BUNDLED_APPS = new Map<string, string>([
@@ -29,4 +31,5 @@ export const BUNDLED_APPS = new Map<string, string>([
   ['mkdir', MKDIR_SOURCE],
   ['rm', RM_SOURCE],
   ['mv', MV_SOURCE],
+  ['ps', PS_SOURCE],
 ]);
