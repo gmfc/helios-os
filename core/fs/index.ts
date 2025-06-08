@@ -237,7 +237,9 @@ export class InMemoryFileSystem {
    * Create a deep copy of the filesystem preserving the persist hook.
    */
   public clone(): InMemoryFileSystem {
-    return new InMemoryFileSystem(this.getSnapshot(), this.persistHook);
+    const fs = new InMemoryFileSystem(this.getSnapshot(), this.persistHook);
+    fs.mounts = new Map(this.mounts);
+    return fs;
   }
 
   public mount(image: FileSystemSnapshot, path: string): void {
