@@ -311,6 +311,76 @@ export class InMemoryFileSystem {
     this.persist();
   }
 
+  /**
+   * Lists the contents of a directory.
+   * @param path The directory to list.
+   * @returns Array of nodes contained in the directory.
+   */
+  public listDirectory(path: string): FileSystemNode[] {
+    const node = this.nodes.get(path);
+    if (!node || node.kind !== 'dir') {
+      throw new Error(`ENOTDIR: not a directory, scandir '${path}'`);
+    }
+    return Array.from(node.children?.values() ?? []);
+  }
+
+  /**
+   * Remove a file or empty directory.
+   */
+  public remove(path: string): void {
+    const node = this.nodes.get(path);
+    if (!node || path === '/') {
+      throw new Error(`ENOENT: no such file or directory, unlink '${path}'`);
+    }
+    if (node.kind === 'dir' && node.children && node.children.size > 0) {
+      throw new Error('ENOTEMPTY: directory not empty');
+    }
+    const parentPath = this.getParentPath(path);
+    const parent = this.nodes.get(parentPath);
+    if (!parent || parent.kind !== 'dir') {
+      throw new Error(`ENOENT: no such file or directory, unlink '${path}'`);
+    }
+    parent.children?.delete(this.getBaseName(path));
+    this.nodes.delete(path);
+    this.persist();
+  }
+
+  /**
+   * Rename a file or directory.
+   */
+  public rename(oldPath: string, newPath: string): void {
+    const node = this.nodes.get(oldPath);
+    if (!node) {
+      throw new Error(`ENOENT: no such file or directory, rename '${oldPath}'`);
+    }
+    if (this.nodes.has(newPath)) {
+      throw new Error(`EEXIST: file already exists, rename '${newPath}'`);
+    }
+    const oldParent = this.nodes.get(this.getParentPath(oldPath));
+    const newParent = this.nodes.get(this.getParentPath(newPath));
+    if (!oldParent || oldParent.kind !== 'dir' || !newParent || newParent.kind !== 'dir') {
+      throw new Error('ENOENT: invalid path');
+    }
+    oldParent.children?.delete(this.getBaseName(oldPath));
+    newParent.children?.set(this.getBaseName(newPath), node);
+
+    const updatePaths = (n: FileSystemNode, oldPrefix: string, newPrefix: string) => {
+      const current = n.path;
+      const updated = newPrefix + current.slice(oldPrefix.length);
+      this.nodes.delete(current);
+      n.path = updated;
+      this.nodes.set(updated, n);
+      if (n.kind === 'dir' && n.children) {
+        for (const child of n.children.values()) {
+          updatePaths(child, oldPrefix, newPrefix);
+        }
+      }
+    };
+
+    updatePaths(node, oldPath, newPath);
+    this.persist();
+  }
+
   private persist() {
     if (this.persistHook) {
       this.persistHook(this.serialize());

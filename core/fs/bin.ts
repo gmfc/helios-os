@@ -187,6 +187,78 @@ export const DESKTOP_SOURCE = `
   }
 `;
 
+export const LS_SOURCE = `
+  async (syscall, argv) => {
+    const STDOUT_FD = 1;
+    const STDERR_FD = 2;
+    const encode = (s) => new TextEncoder().encode(s);
+    const path = argv[0] || '/';
+    try {
+      const entries = await syscall('readdir', path);
+      const names = entries.map(e => e.path.split('/').pop()).join('\n') + '\n';
+      await syscall('write', STDOUT_FD, encode(names));
+    } catch (e) {
+      await syscall('write', STDERR_FD, encode('ls: ' + e.message + '\n'));
+      return 1;
+    }
+    return 0;
+  }
+`;
+
+export const MKDIR_SOURCE = `
+  async (syscall, argv) => {
+    const STDERR_FD = 2;
+    const encode = (s) => new TextEncoder().encode(s);
+    if (argv.length === 0) {
+      await syscall('write', STDERR_FD, encode('mkdir: missing operand\n'));
+      return 1;
+    }
+    try {
+      await syscall('mkdir', argv[0], 0o755);
+    } catch (e) {
+      await syscall('write', STDERR_FD, encode('mkdir: ' + e.message + '\n'));
+      return 1;
+    }
+    return 0;
+  }
+`;
+
+export const RM_SOURCE = `
+  async (syscall, argv) => {
+    const STDERR_FD = 2;
+    const encode = (s) => new TextEncoder().encode(s);
+    if (argv.length === 0) {
+      await syscall('write', STDERR_FD, encode('rm: missing operand\n'));
+      return 1;
+    }
+    try {
+      await syscall('unlink', argv[0]);
+    } catch (e) {
+      await syscall('write', STDERR_FD, encode('rm: ' + e.message + '\n'));
+      return 1;
+    }
+    return 0;
+  }
+`;
+
+export const MV_SOURCE = `
+  async (syscall, argv) => {
+    const STDERR_FD = 2;
+    const encode = (s) => new TextEncoder().encode(s);
+    if (argv.length < 2) {
+      await syscall('write', STDERR_FD, encode('mv: missing operand\n'));
+      return 1;
+    }
+    try {
+      await syscall('rename', argv[0], argv[1]);
+    } catch (e) {
+      await syscall('write', STDERR_FD, encode('mv: ' + e.message + '\n'));
+      return 1;
+    }
+    return 0;
+  }
+`;
+
 
 export const CAT_MANIFEST = JSON.stringify({
   name: 'cat',
@@ -216,5 +288,25 @@ export const PING_MANIFEST = JSON.stringify({
 export const DESKTOP_MANIFEST = JSON.stringify({
   name: 'desktop',
   syscalls: ['open', 'read', 'write', 'close', 'spawn']
+});
+
+export const LS_MANIFEST = JSON.stringify({
+  name: 'ls',
+  syscalls: ['readdir', 'write']
+});
+
+export const MKDIR_MANIFEST = JSON.stringify({
+  name: 'mkdir',
+  syscalls: ['mkdir', 'write']
+});
+
+export const RM_MANIFEST = JSON.stringify({
+  name: 'rm',
+  syscalls: ['unlink', 'write']
+});
+
+export const MV_MANIFEST = JSON.stringify({
+  name: 'mv',
+  syscalls: ['rename', 'write']
 });
 

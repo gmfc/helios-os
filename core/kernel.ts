@@ -278,6 +278,14 @@ export class Kernel {
           return this.syscall_udp_send(args[0], args[1]);
         case 'draw':
           return this.syscall_draw(args[0], args[1]);
+        case 'mkdir':
+          return this.syscall_mkdir(args[0], args[1]);
+        case 'readdir':
+          return this.syscall_readdir(args[0]);
+        case 'unlink':
+          return this.syscall_unlink(args[0]);
+        case 'rename':
+          return this.syscall_rename(args[0], args[1]);
         case 'snapshot':
           return this.snapshot();
         case 'save_snapshot':
@@ -428,6 +436,25 @@ export class Kernel {
     };
     eventBus.emit('draw', payload);
     return id;
+  }
+
+  private syscall_mkdir(path: string, perms: number): number {
+    this.fs.createDirectory(path, perms);
+    return 0;
+  }
+
+  private syscall_readdir(path: string): FileSystemNode[] {
+    return this.fs.listDirectory(path);
+  }
+
+  private syscall_unlink(path: string): number {
+    this.fs.remove(path);
+    return 0;
+  }
+
+  private syscall_rename(oldPath: string, newPath: string): number {
+    this.fs.rename(oldPath, newPath);
+    return 0;
   }
 
   public snapshot(): Snapshot {
