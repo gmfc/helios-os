@@ -11,6 +11,12 @@ use v8;
 
 mod db;
 
+// Context data that will be passed to the V8 callback
+struct SyscallContext {
+    app_handle: tauri::AppHandle,
+    pid: u32,
+}
+
 #[tauri::command]
 fn save_snapshot(json: String) -> Result<(), String> {
     let conn = db::snapshot()?;
@@ -72,6 +78,54 @@ fn init_v8() {
     });
 }
 
+// Static callback function that retrieves context from v8::External
+fn syscall_callback(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+) {
+    // Get the context data from the function template's external data
+    let data = args.data();
+    let external = v8::Local::<v8::External>::try_from(data).unwrap();
+    let context_ptr = external.value() as *mut SyscallContext;
+    let context = unsafe { &*context_ptr };
+
+    let call_val = args.get(0);
+    let call = call_val.to_rust_string_lossy(scope);
+    let mut argv: Vec<Value> = Vec::new();
+    for i in 1..args.length() {
+        let v = args.get(i);
+        let value: Value = serde_v8::from_v8(scope, v).unwrap_or(Value::Null);
+        argv.push(value);
+    }
+
+    let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
+    let (tx, rx) = mpsc::channel();
+    RESPONSES.lock().unwrap().insert(id, tx);
+
+    let payload = serde_json::json!({
+        "id": id,
+        "pid": context.pid,
+        "call": call,
+        "args": argv,
+    });
+
+    let _ = context.app_handle.emit_all("syscall", payload);
+
+    let resolver = v8::PromiseResolver::new(scope).unwrap();
+    let promise = resolver.get_promise(scope);
+    rv.set(promise.into());
+
+    if let Ok(result) = rx.recv() {
+        let value =
+            serde_v8::to_v8(scope, result).unwrap_or_else(|_| v8::undefined(scope).into());
+        resolver.resolve(scope, value);
+    } else {
+        let err = v8::String::new(scope, "syscall failed").unwrap();
+        resolver.reject(scope, err.into());
+    }
+}
+
 #[tauri::command]
 fn syscall_response(id: usize, result: Value) -> Result<(), String> {
     if let Some(tx) = RESPONSES.lock().unwrap().remove(&id) {
@@ -95,43 +149,19 @@ async fn run_isolate(
         let context = v8::Context::new(handle_scope, Default::default());
         let scope = &mut v8::ContextScope::new(handle_scope, context);
 
-        // syscall callback
-        let app_clone = app.clone();
-        let syscall_tmpl = v8::FunctionTemplate::new(scope, move |scope, args, mut rv| {
-            let call_val = args.get(0);
-            let call = call_val.to_rust_string_lossy(scope);
-            let mut argv: Vec<Value> = Vec::new();
-            for i in 1..args.length() {
-                let v = args.get(i);
-                let value: Value = serde_v8::from_v8(scope, v).unwrap_or(Value::Null);
-                argv.push(value);
-            }
-
-            let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-            let (tx, rx) = mpsc::channel();
-            RESPONSES.lock().unwrap().insert(id, tx);
-
-            let payload = serde_json::json!({
-                "id": id,
-                "pid": pid,
-                "call": call,
-                "args": argv,
-            });
-            let _ = app_clone.emit_all("syscall", payload);
-
-            let resolver = v8::PromiseResolver::new(scope).unwrap();
-            let promise = resolver.get_promise(scope);
-            rv.set(promise.into());
-
-            if let Ok(result) = rx.recv() {
-                let value =
-                    serde_v8::to_v8(scope, result).unwrap_or_else(|_| v8::undefined(scope).into());
-                resolver.resolve(scope, value);
-            } else {
-                let err = v8::String::new(scope, "syscall failed").unwrap();
-                resolver.reject(scope, err.into());
-            }
+        // Create context data and wrap it in v8::External
+        let syscall_context = Box::new(SyscallContext {
+            app_handle: app.clone(),
+            pid,
         });
+        let context_ptr = Box::into_raw(syscall_context);
+        let external = v8::External::new(scope, context_ptr as *mut std::ffi::c_void);
+
+        // Create function template with the external data
+        let syscall_tmpl = v8::FunctionTemplate::builder(syscall_callback)
+            .data(external.into())
+            .build(scope);
+        
         let syscall_func = syscall_tmpl.get_function(scope).unwrap();
         let global = context.global(scope);
         let key = v8::String::new(scope, "syscall").unwrap();
@@ -140,6 +170,12 @@ async fn run_isolate(
         let code_str = v8::String::new(scope, &code).ok_or("bad code")?;
         let script = v8::Script::compile(scope, code_str, None).ok_or("compile")?;
         let value = script.run(scope).ok_or("run")?;
+        
+        // Clean up the context data
+        unsafe {
+            let _ = Box::from_raw(context_ptr);
+        }
+        
         Ok::<i32, String>(value.int32_value(scope).unwrap_or_default())
     });
     match timeout(Duration::from_millis(quota_ms), fut).await {

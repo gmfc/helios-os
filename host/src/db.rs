@@ -1,10 +1,10 @@
 use rusqlite::Connection;
-use tauri::api::path::app_dir;
+use tauri::api::path::app_data_dir;
 
 /// Open the snapshot database connection creating the DB if needed.
 /// Errors are logged to stderr.
 pub fn snapshot() -> Result<Connection, String> {
-    let dir = match app_dir(&tauri::Config::default()) {
+    let dir = match app_data_dir(&tauri::Config::default()) {
         Some(d) => d,
         None => {
             eprintln!("Database Error: no app dir");
@@ -39,7 +39,7 @@ pub fn snapshot() -> Result<Connection, String> {
 /// Open the filesystem database connection creating the DB if needed.
 /// Errors are logged to stderr.
 pub fn fs() -> Result<Connection, String> {
-    let dir = match app_dir(&tauri::Config::default()) {
+    let dir = match app_data_dir(&tauri::Config::default()) {
         Some(d) => d,
         None => {
             eprintln!("Database Error: no app dir");
