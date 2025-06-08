@@ -1,7 +1,7 @@
 // Helios-OS Kernel
 // Implementation to follow based on the project roadmap. 
 
-import { InMemoryFileSystem, FileSystemNode } from './fs';
+import { InMemoryFileSystem, FileSystemNode, FileSystemSnapshot } from './fs';
 import {
   loadSnapshot,
   createPersistHook,
@@ -290,6 +290,10 @@ export class Kernel {
           return this.syscall_unlink(args[0]);
         case 'rename':
           return this.syscall_rename(args[0], args[1]);
+        case 'mount':
+          return this.syscall_mount(args[0], args[1]);
+        case 'unmount':
+          return this.syscall_unmount(args[0]);
         case 'snapshot':
           return this.snapshot();
         case 'save_snapshot':
@@ -458,6 +462,16 @@ export class Kernel {
 
   private syscall_rename(oldPath: string, newPath: string): number {
     this.fs.rename(oldPath, newPath);
+    return 0;
+  }
+
+  private syscall_mount(image: FileSystemSnapshot, path: string): number {
+    this.fs.mount(image, path);
+    return 0;
+  }
+
+  private syscall_unmount(path: string): number {
+    this.fs.unmount(path);
     return 0;
   }
 
