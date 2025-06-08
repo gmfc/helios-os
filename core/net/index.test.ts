@@ -51,7 +51,7 @@ function testRouter() {
     const router = new Router();
     const nic1 = new NIC('1', 'AA');
     const nic2 = new NIC('2', 'BB');
-    router.addRoute('192.168.1./24', nic2);
+    router.addRoute('192.168.1.0/24', nic2);
     const frame = { src: '10.0.0.1', dst: '192.168.1.5', payload: new Uint8Array([3]) };
     router.forward(frame);
     assert(nic2.rx.length === 1 && nic2.rx[0] === frame, 'router forwards to correct NIC');

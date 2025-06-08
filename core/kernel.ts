@@ -334,6 +334,8 @@ export class Kernel {
       } else {
         throw new Error(`ENOENT: no such file or directory, open '${path}'`);
       }
+    } else if (node.kind === 'dir') {
+      throw new Error(`EISDIR: illegal operation on a directory, open '${path}'`);
     }
 
     const needsRead = flags.includes('r');

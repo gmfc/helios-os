@@ -23,6 +23,16 @@ async function run() {
   kernel['syscall_unmount']('/mnt');
   assert(!kernel['state'].fs.getNode('/mnt/foo.txt'), 'file unmounted');
   console.log('Kernel mount/unmount test passed.');
+
+  const pid = kernel['createProcess']();
+  const pcb = kernel['state'].processes.get(pid);
+  try {
+    kernel['syscall_open'](pcb, '/', 'r');
+    assert.fail('opening directory should throw');
+  } catch (e: any) {
+    assert(e.message.includes('EISDIR'), 'EISDIR error expected');
+    console.log('Kernel open directory test passed.');
+  }
 }
 
 run();
