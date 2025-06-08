@@ -88,8 +88,8 @@ const App = () => {
             });
         };
 
-        eventBus.on('draw', handler);
-        return () => eventBus.off('draw', handler);
+        eventBus.on('desktop.createWindow', handler);
+        return () => eventBus.off('desktop.createWindow', handler);
     }, []);
 
     const handleResize = useCallback(() => {
