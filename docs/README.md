@@ -5,6 +5,7 @@ This folder contains detailed guides covering each part of the project. Use the 
 - [Architecture Overview](architecture.md)
 - [Kernel Guide](kernel.md)
 - [Kernel MVP Walkthrough](kernel_mvp.md)
+- [Persistent File System Design](persistent_fs.md)
 - [Host Service](host.md)
 - [User Interface](ui.md)
 - [Developer Workflow](workflow.md)
