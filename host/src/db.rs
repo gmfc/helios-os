@@ -25,6 +25,11 @@ pub fn snapshot() -> Result<Connection, String> {
             return Err(msg);
         }
     };
+    if let Err(e) = conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;") {
+        let msg = e.to_string();
+        eprintln!("Database Error: {}", msg);
+        return Err(msg);
+    }
     if let Err(e) = conn.execute(
         "CREATE TABLE IF NOT EXISTS snapshot_state (id INTEGER PRIMARY KEY, json TEXT)",
         [],
@@ -60,6 +65,11 @@ pub fn fs() -> Result<Connection, String> {
             return Err(msg);
         }
     };
+    if let Err(e) = conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;") {
+        let msg = e.to_string();
+        eprintln!("Database Error: {}", msg);
+        return Err(msg);
+    }
     if let Err(e) = conn.execute(
         "CREATE TABLE IF NOT EXISTS fs_state (id INTEGER PRIMARY KEY, json TEXT)",
         [],
