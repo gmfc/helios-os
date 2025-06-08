@@ -3,6 +3,8 @@ Implementation Guide (v0.2 — Jun 2025)**
 
 > Opinion-ated, fact-checked, concise. Everything a senior dev team needs to build the TypeScript-only hacking MMO.
 
+For detailed guides on each component see the [docs directory](docs/README.md).
+
 ---
 
 ## 0 — Core Goals
