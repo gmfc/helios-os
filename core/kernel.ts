@@ -316,6 +316,8 @@ export class Kernel {
         case 'save_snapshot':
           persistKernelSnapshot(this.snapshot());
           return 0;
+        case 'ps':
+          return this.syscall_ps();
         default:
           throw new Error(`Unknown syscall: ${call}`);
       }
@@ -508,6 +510,14 @@ export class Kernel {
     fsClone.unmount(path);
     this.state.fs = fsClone;
     return 0;
+  }
+
+  private syscall_ps() {
+    const list: Array<{ pid: number; argv?: string[]; exited?: boolean }> = [];
+    for (const [pid, pcb] of this.state.processes.entries()) {
+      list.push({ pid, argv: pcb.argv, exited: pcb.exited });
+    }
+    return list;
   }
 
   public snapshot(): Snapshot {
