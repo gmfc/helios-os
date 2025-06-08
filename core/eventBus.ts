@@ -8,6 +8,7 @@ export interface DrawPayload {
 
 export interface EventMap {
   draw: DrawPayload;
+  'desktop.createWindow': DrawPayload;
 }
 
 export type Handler<T = any> = (payload: T) => void;

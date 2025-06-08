@@ -465,7 +465,7 @@ export class Kernel {
       html: new TextDecoder().decode(html),
       opts,
     };
-    eventBus.emit('draw', payload);
+    eventBus.emit('desktop.createWindow', payload);
     return id;
   }
 

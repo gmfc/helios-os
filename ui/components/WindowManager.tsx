@@ -34,6 +34,15 @@ export const WindowManager = forwardRef<WindowManagerHandles, WindowManagerProps
     setWindows(w => [...w, state]);
   };
 
+  const focusWindow = (id: number) => {
+    setWindows(w => {
+      const idx = w.findIndex(win => win.id === id);
+      if (idx === -1 || idx === w.length - 1) return w;
+      const win = w[idx];
+      return [...w.slice(0, idx), ...w.slice(idx + 1), win];
+    });
+  };
+
   const closeWindow = (id: number) => {
     setWindows(w => w.filter(win => win.id !== id));
   };
@@ -42,19 +51,18 @@ export const WindowManager = forwardRef<WindowManagerHandles, WindowManagerProps
 
   return (
     <div className="window-manager-container" style={{ position: 'relative', width: '100vw', height: '100vh' }}>
-      {windows.map(win => (
+      {windows.map((win, index) => (
         <Window
           key={win.id}
+          id={win.id}
           title={win.title ?? `Window ${win.id}`}
           initialPosition={win.position}
           initialSize={win.size}
+          zIndex={index + 1}
           onResize={win.id === 0 ? onResize : undefined}
+          onFocus={focusWindow}
         >
-          {typeof win.content === 'string' ? (
-            <div dangerouslySetInnerHTML={{ __html: win.content as string }} />
-          ) : (
-            win.content
-          )}
+          {win.content}
         </Window>
       ))}
     </div>
