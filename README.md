@@ -115,6 +115,8 @@ while (true) {
 | `unmount(path)`           | detach disk image |
 | `snapshot()`              | returns JSON blob |
 | `save_snapshot()`         | persist snapshot  |
+| `save_snapshot_named(name)` | persist to slot |
+| `load_snapshot_named(name)` | load slot & reboot |
 
 ---
 
@@ -186,6 +188,7 @@ Kernel denies undeclared syscalls.
 * `reboot` saves the current snapshot and reloads it on next boot so services
   and open windows persist.
 * `snapshot save <name>` stores the state and `snapshot load <name>` restores it.
+* Save slots are backed by the `save_snapshot_named` and `load_snapshot_named` syscalls.
 
 ---
 

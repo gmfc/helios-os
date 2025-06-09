@@ -16,6 +16,8 @@ Processes are executed inside V8 isolates spawned by the host. Each process has 
 
 `core/fs/sqlite.ts` provides helpers to load and persist the entire kernel state. A snapshot is pure JSON that captures files, running processes and network connections. Loading a snapshot recreates the same environment deterministically.
 
+When the kernel stops or reboots the host stores the current snapshot to disk. On the next boot `Kernel.create()` loads that snapshot so all windows and services resume exactly where they left off. Users can also manage save slots with `save_snapshot_named(name)` and `load_snapshot_named(name)` through the `/sbin/snapshot` utility.
+
 ### Syscalls
 
 User programs interact with the kernel through an asynchronous syscall dispatcher. The table below lists all calls currently supported.
