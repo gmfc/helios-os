@@ -183,6 +183,26 @@ export class Kernel {
           for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
           return arr;
         }
+        if (value.dataType === 'NIC') {
+          const nic = new NIC(value.id, value.mac, value.ip);
+          nic.rx = value.rx ?? [];
+          nic.tx = value.tx ?? [];
+          return nic;
+        }
+        if (value.dataType === 'TCP') {
+          const tcp = new TCP();
+          (tcp as any).listeners = new Map(value.listeners ?? []);
+          (tcp as any).sockets = new Map(value.sockets ?? []);
+          (tcp as any).nextSocket = value.nextSocket ?? 1;
+          return tcp;
+        }
+        if (value.dataType === 'UDP') {
+          const udp = new UDP();
+          (udp as any).listeners = new Map(value.listeners ?? []);
+          (udp as any).sockets = new Map(value.sockets ?? []);
+          (udp as any).nextSocket = value.nextSocket ?? 1;
+          return udp;
+        }
       }
       return value;
     };
@@ -203,21 +223,11 @@ export class Kernel {
     kernel.state.services = new Map(parsed.services ?? []);
     kernel.initPid = parsed.initPid ?? null;
 
-    kernel.pendingNics = parsed.nics ? Array.from(parsed.nics) : [];
+    kernel.pendingNics = parsed.nics ? Array.from(parsed.nics.values()) : [];
 
-    kernel.state.tcp = new TCP();
-    if (parsed.tcp) {
-      (kernel.state.tcp as any).listeners = new Map(parsed.tcp.listeners ?? []);
-      (kernel.state.tcp as any).sockets = new Map(parsed.tcp.sockets ?? []);
-      (kernel.state.tcp as any).nextSocket = parsed.tcp.nextSocket ?? 1;
-    }
+    kernel.state.tcp = parsed.tcp instanceof TCP ? parsed.tcp : new TCP();
 
-    kernel.state.udp = new UDP();
-    if (parsed.udp) {
-      (kernel.state.udp as any).listeners = new Map(parsed.udp.listeners ?? []);
-      (kernel.state.udp as any).sockets = new Map(parsed.udp.sockets ?? []);
-      (kernel.state.udp as any).nextSocket = parsed.udp.nextSocket ?? 1;
-    }
+    kernel.state.udp = parsed.udp instanceof UDP ? parsed.udp : new UDP();
 
     for (const [name, svc] of kernel.state.services.entries()) {
       if (name.startsWith('httpd')) {
@@ -626,6 +636,32 @@ export class Kernel {
           ? Buffer.from(value).toString('base64')
           : btoa(String.fromCharCode(...Array.from(value)));
         return { dataType: 'Uint8Array', value: str };
+      }
+      if (value instanceof NIC) {
+        return {
+          dataType: 'NIC',
+          id: value.id,
+          mac: value.mac,
+          ip: value.ip,
+          rx: value.rx,
+          tx: value.tx,
+        };
+      }
+      if (value instanceof TCP) {
+        return {
+          dataType: 'TCP',
+          listeners: Array.from((value as any).listeners.entries()),
+          sockets: Array.from((value as any).sockets.entries()),
+          nextSocket: (value as any).nextSocket,
+        };
+      }
+      if (value instanceof UDP) {
+        return {
+          dataType: 'UDP',
+          listeners: Array.from((value as any).listeners.entries()),
+          sockets: Array.from((value as any).sockets.entries()),
+          nextSocket: (value as any).nextSocket,
+        };
       }
       return value;
     };
