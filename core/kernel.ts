@@ -41,6 +41,7 @@ interface ProcessControlBlock {
   uid: number;
   gid: number;
   quotaMs: number;
+  quotaMs_total: number;
   quotaMem: number;
     cpuMs: number;
     memBytes: number;
@@ -63,6 +64,7 @@ export interface SpawnOpts {
   uid?: number;
   gid?: number;
   quotaMs?: number;
+  quotaMs_total?: number;
   quotaMem?: number;
   syscalls?: string[];
     tty?: string;
@@ -260,6 +262,7 @@ export class Kernel {
     for (const pid of kernel.state.processes.keys()) {
       kernel.registerProc(pid);
       const pcb = kernel.state.processes.get(pid)!;
+      if (pcb.quotaMs_total === undefined) pcb.quotaMs_total = Infinity;
       for (const fd of pcb.fds.keys()) {
         kernel.registerProcFd(pid, fd);
       }
@@ -344,6 +347,7 @@ export class Kernel {
         uid: 1000,
         gid: 1000,
         quotaMs: 10,
+        quotaMs_total: Infinity,
         quotaMem: 8 * 1024 * 1024,
         cpuMs: 0,
         memBytes: 0,
@@ -612,6 +616,7 @@ export class Kernel {
     if (opts.uid !== undefined) pcb.uid = opts.uid;
     if (opts.gid !== undefined) pcb.gid = opts.gid;
     if (opts.quotaMs !== undefined) pcb.quotaMs = opts.quotaMs;
+    if (opts.quotaMs_total !== undefined) pcb.quotaMs_total = opts.quotaMs_total;
     if (opts.quotaMem !== undefined) pcb.quotaMem = opts.quotaMem;
     pcb.cpuMs = 0;
     pcb.memBytes = 0;
@@ -838,7 +843,10 @@ export class Kernel {
         if (result) {
             pcb.cpuMs += result.cpu_ms ?? 0;
             pcb.memBytes += result.mem_bytes ?? 0;
-            if (!result.running) {
+            if (pcb.cpuMs > pcb.quotaMs_total || pcb.memBytes > pcb.quotaMem) {
+                console.warn('Process', pcb.pid, 'exceeded quota');
+                this.syscall_kill(pcb.pid, 9);
+            } else if (!result.running) {
                 pcb.exitCode = result.exit_code ?? 0;
                 pcb.exited = true;
             }
