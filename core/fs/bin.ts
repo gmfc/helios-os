@@ -367,11 +367,12 @@ export const LOGIN_SOURCE = `
       return line;
     }
 
+    const ttyName = 'tty0';
     let tty;
     try {
-      tty = await syscall('open', '/dev/tty0', 'r');
+      tty = await syscall('open', '/dev/' + ttyName, 'r');
     } catch {
-      await syscall('write', STDERR_FD, encode('login: /dev/tty0 not found\n'));
+      await syscall('write', STDERR_FD, encode('login: /dev/' + ttyName + ' not found\n'));
       return 1;
     }
 
@@ -385,7 +386,7 @@ export const LOGIN_SOURCE = `
       const code = await readFile('/bin/bash');
       let m;
       try { m = JSON.parse(await readFile('/bin/bash.manifest.json')); } catch {}
-      await syscall('spawn', code, { syscalls: m ? m.syscalls : undefined });
+      await syscall('spawn', code, { syscalls: m ? m.syscalls : undefined, tty: ttyName });
     } catch {
       await syscall('write', STDERR_FD, encode('login: failed to launch shell\n'));
       return 1;
