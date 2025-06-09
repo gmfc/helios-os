@@ -29,6 +29,7 @@ interface FileDescriptorEntry {
   path: string;
   position: number;
   flags: string; // e.g., 'r', 'w', 'rw'
+  virtual?: boolean;
 }
 
 /**
@@ -431,6 +432,16 @@ export class Kernel {
   // --- Syscall Implementations ---
 
   private async syscall_open(pcb: ProcessControlBlock, path: string, flags: string): Promise<FileDescriptor> {
+    if (this.isProcPath(path)) {
+      const parts = path.split('/').filter(p => p);
+      if (parts.length < 3) {
+        throw new Error(`EISDIR: illegal operation on a directory, open '${path}'`);
+      }
+      const fd = pcb.nextFd++;
+      pcb.fds.set(fd, { path, position: 0, flags, virtual: true });
+      return fd;
+    }
+
     let node = this.state.fs.getNode(path);
     if (!node) {
       if (flags.includes('w') || flags.includes('a')) {
@@ -480,6 +491,11 @@ export class Kernel {
     if (!entry) {
       throw new Error('EBADF: bad file descriptor');
     }
+    if (entry.virtual) {
+      const data = this.procReadFile(entry.path).subarray(entry.position, entry.position + length);
+      entry.position += data.length;
+      return data;
+    }
 
     const node = this.state.fs.getNode(entry.path);
     if (!node || node.kind !== 'file' || !node.data) {
@@ -502,6 +518,10 @@ export class Kernel {
     const entry = pcb.fds.get(fd);
     if (!entry) {
       throw new Error('EBADF: bad file descriptor');
+    }
+
+    if (entry.virtual) {
+      throw new Error('EBADF: file not opened for writing');
     }
 
     const node = this.state.fs.getNode(entry.path);
@@ -579,6 +599,99 @@ export class Kernel {
     return this.state.udp.send(sock, data);
   }
 
+  // --- /proc helpers ---
+  private isProcPath(path: string): boolean {
+    return path === '/proc' || path.startsWith('/proc/');
+  }
+
+  private procReaddir(path: string): FileSystemNode[] {
+    const parts = path.split('/').filter(p => p);
+    const now = new Date();
+
+    if (path === '/proc') {
+      return Array.from(this.state.processes.keys()).map(pid => ({
+        path: `/proc/${pid}`,
+        kind: 'dir',
+        permissions: 0o555,
+        uid: 0,
+        gid: 0,
+        createdAt: now,
+        modifiedAt: now,
+      }));
+    }
+
+    if (parts.length === 2) {
+      const pid = parseInt(parts[1], 10);
+      const pcb = this.state.processes.get(pid);
+      if (!pcb) throw new Error(`ENOENT: no such file or directory, scandir '${path}'`);
+      return [
+        {
+          path: `/proc/${pid}/status`,
+          kind: 'file',
+          permissions: 0o444,
+          uid: 0,
+          gid: 0,
+          createdAt: now,
+          modifiedAt: now,
+        },
+        {
+          path: `/proc/${pid}/fd`,
+          kind: 'dir',
+          permissions: 0o555,
+          uid: 0,
+          gid: 0,
+          createdAt: now,
+          modifiedAt: now,
+        },
+      ];
+    }
+
+    if (parts.length === 3 && parts[2] === 'fd') {
+      const pid = parseInt(parts[1], 10);
+      const pcb = this.state.processes.get(pid);
+      if (!pcb) throw new Error(`ENOENT: no such file or directory, scandir '${path}'`);
+      return Array.from(pcb.fds.keys()).map(fd => ({
+        path: `/proc/${pid}/fd/${fd}`,
+        kind: 'file',
+        permissions: 0o444,
+        uid: 0,
+        gid: 0,
+        createdAt: now,
+        modifiedAt: now,
+      }));
+    }
+
+    throw new Error(`ENOENT: no such file or directory, scandir '${path}'`);
+  }
+
+  private procReadFile(path: string): Uint8Array {
+    const parts = path.split('/').filter(p => p);
+    const enc = new TextEncoder();
+
+    if (parts.length === 3 && parts[2] === 'status') {
+      const pid = parseInt(parts[1], 10);
+      const pcb = this.state.processes.get(pid);
+      if (!pcb) throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+      const cmd = pcb.argv ? pcb.argv.join(' ') : '';
+      const out =
+        `pid:\t${pid}\nuid:\t${pcb.uid}\n` +
+        `cpuMs:\t${pcb.cpuMs}\nmemBytes:\t${pcb.memBytes}\n` +
+        `tty:\t${pcb.tty ?? ''}\ncmd:\t${cmd}\n`;
+      return enc.encode(out);
+    }
+
+    if (parts.length === 4 && parts[2] === 'fd') {
+      const pid = parseInt(parts[1], 10);
+      const fd = parseInt(parts[3], 10);
+      const pcb = this.state.processes.get(pid);
+      const entry = pcb?.fds.get(fd);
+      if (!pcb || !entry) throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+      return enc.encode(entry.path);
+    }
+
+    throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+  }
+
   private syscall_draw(html: Uint8Array, opts: WindowOpts): number {
     const id = this.state.windows.length;
     const windows = this.state.windows.slice();
@@ -601,6 +714,9 @@ export class Kernel {
   }
 
   private async syscall_readdir(path: string): Promise<FileSystemNode[]> {
+    if (this.isProcPath(path)) {
+      return this.procReaddir(path);
+    }
     return this.state.fs.listDirectory(path);
   }
 
