@@ -183,6 +183,8 @@ Kernel denies undeclared syscalls.
   * Server keeps per-machine block-diffs, per-ISP ledger, global DNS zone.
   * Delta sync every 3 s; SHA-1 epoch hash ensures determinism.
   * Rollback: operator replaces diff chain; clients auto-replay.
+* `reboot` saves the current snapshot and reloads it on next boot so services
+  and open windows persist.
 
 ---
 
