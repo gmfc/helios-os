@@ -25,7 +25,7 @@ type FileDescriptor = number;
  * Represents a single entry in a process's file descriptor table.
  */
 interface FileDescriptorEntry {
-  node: FileSystemNode;
+  path: string;
   position: number;
   flags: string; // e.g., 'r', 'w', 'rw'
 }
@@ -190,7 +190,7 @@ export class Kernel {
     };
     const parsed: Snapshot = JSON.parse(JSON.stringify(snapshot), reviver);
 
-    const fs = new InMemoryFileSystem(parsed.fs ?? undefined, createPersistHook());
+    const fs = new InMemoryFileSystem(snapshot.fs ?? undefined, createPersistHook());
     const kernel = new Kernel(fs);
     kernel.state.processes = new Map(parsed.processes ?? []);
     kernel.state.nextPid = parsed.nextPid ?? 1;
@@ -439,17 +439,22 @@ export class Kernel {
     if (flags.includes('a') && node.data) {
       position = node.data.length;
     }
-    pcb.fds.set(fd, { node, position, flags });
+    pcb.fds.set(fd, { path, position, flags });
     return fd;
   }
 
   private syscall_read(pcb: ProcessControlBlock, fd: FileDescriptor, length: number): Uint8Array {
     const entry = pcb.fds.get(fd);
-    if (!entry || entry.node.kind !== 'file' || !entry.node.data) {
+    if (!entry) {
       throw new Error('EBADF: bad file descriptor');
     }
 
-    const data = entry.node.data.subarray(entry.position, entry.position + length);
+    const node = this.state.fs.getNode(entry.path);
+    if (!node || node.kind !== 'file' || !node.data) {
+      throw new Error('EBADF: bad file descriptor');
+    }
+
+    const data = node.data.subarray(entry.position, entry.position + length);
     entry.position += data.length;
     return data;
   }
@@ -463,7 +468,12 @@ export class Kernel {
     }
 
     const entry = pcb.fds.get(fd);
-    if (!entry || entry.node.kind !== 'file') {
+    if (!entry) {
+      throw new Error('EBADF: bad file descriptor');
+    }
+
+    const node = this.state.fs.getNode(entry.path);
+    if (!node || node.kind !== 'file') {
       throw new Error('EBADF: bad file descriptor');
     }
 
@@ -471,7 +481,6 @@ export class Kernel {
       throw new Error('EBADF: file not opened for writing');
     }
 
-    const node = entry.node;
     const before = node.data ? node.data.slice(0, entry.position) : new Uint8Array();
     const after = node.data ? node.data.slice(entry.position + data.length) : new Uint8Array();
     const newData = new Uint8Array(before.length + data.length + after.length);
@@ -479,7 +488,7 @@ export class Kernel {
     newData.set(data, before.length);
     newData.set(after, before.length + data.length);
     const fsClone = this.state.fs.clone();
-    const target = fsClone.getNode(node.path)!;
+    const target = fsClone.getNode(entry.path)!;
     target.data = newData;
     target.modifiedAt = new Date();
     entry.position += data.length;
