@@ -40,6 +40,9 @@ interface ProcessControlBlock {
   gid: number;
   quotaMs: number;
   quotaMem: number;
+    cpuMs: number;
+    memBytes: number;
+    tty?: string;
   allowedSyscalls?: Set<string>;
   fds: Map<FileDescriptor, FileDescriptorEntry>;
   nextFd: FileDescriptor;
@@ -60,6 +63,7 @@ export interface SpawnOpts {
   quotaMs?: number;
   quotaMem?: number;
   syscalls?: string[];
+    tty?: string;
 }
 
 export type ServiceHandler = (data: Uint8Array) => Promise<Uint8Array | void>;
@@ -323,15 +327,18 @@ export class Kernel {
   private createProcess(): ProcessID {
     const pid = this.state.nextPid++;
     const pcb: ProcessControlBlock = {
-      pid,
-      uid: 1000,
-      gid: 1000,
-      quotaMs: 10,
-      quotaMem: 8 * 1024 * 1024,
-      allowedSyscalls: undefined,
-      fds: new Map(),
-      nextFd: 3, // 0, 1, 2 are reserved for stdio
-      exited: false,
+        pid,
+        uid: 1000,
+        gid: 1000,
+        quotaMs: 10,
+        quotaMem: 8 * 1024 * 1024,
+        cpuMs: 0,
+        memBytes: 0,
+        tty: undefined,
+        allowedSyscalls: undefined,
+        fds: new Map(),
+        nextFd: 3, // 0, 1, 2 are reserved for stdio
+        exited: false,
     };
     const processes = new Map(this.state.processes);
     processes.set(pid, pcb);
@@ -530,6 +537,9 @@ export class Kernel {
     if (opts.gid !== undefined) pcb.gid = opts.gid;
     if (opts.quotaMs !== undefined) pcb.quotaMs = opts.quotaMs;
     if (opts.quotaMem !== undefined) pcb.quotaMem = opts.quotaMem;
+    pcb.cpuMs = 0;
+    pcb.memBytes = 0;
+    if (opts.tty !== undefined) pcb.tty = opts.tty;
     if (opts.syscalls) pcb.allowedSyscalls = new Set(opts.syscalls);
     pcb.code = code;
     pcb.argv = opts.argv ?? [];
@@ -616,9 +626,9 @@ export class Kernel {
   }
 
   private syscall_ps() {
-    const list: Array<{ pid: number; argv?: string[]; exited?: boolean }> = [];
+    const list: Array<{ pid: number; argv?: string[]; exited?: boolean; cpuMs: number; memBytes: number; tty?: string }> = [];
     for (const [pid, pcb] of this.state.processes.entries()) {
-      list.push({ pid, argv: pcb.argv, exited: pcb.exited });
+        list.push({ pid, argv: pcb.argv, exited: pcb.exited, cpuMs: pcb.cpuMs, memBytes: pcb.memBytes, tty: pcb.tty });
     }
     return list;
   }
@@ -688,13 +698,19 @@ export class Kernel {
     dispatcherMap.set(pcb.pid, syscall);
     const wrapped = `const main = ${pcb.code}; main(syscall, ${JSON.stringify(pcb.argv ?? [])});`;
     try {
-      const exitCode = await invoke('run_isolate', {
-        code: wrapped,
-        quotaMs: pcb.quotaMs,
-        quotaMem: pcb.quotaMem,
-        pid: pcb.pid,
-      });
-      pcb.exitCode = exitCode ?? 0;
+        const result: any = await invoke('run_isolate', {
+            code: wrapped,
+            quotaMs: pcb.quotaMs,
+            quotaMem: pcb.quotaMem,
+            pid: pcb.pid,
+        });
+        if (result) {
+            pcb.exitCode = result.exitCode ?? 0;
+            pcb.cpuMs += result.cpuMs ?? 0;
+            pcb.memBytes += result.memBytes ?? 0;
+        } else {
+            pcb.exitCode = 0;
+        }
     } catch (e) {
       console.error('Process', pcb.pid, 'crashed or exceeded quota:', e);
       pcb.exitCode = 1;

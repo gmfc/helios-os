@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{mpsc, Mutex, Once};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::time::timeout;
 use v8;
 
@@ -165,9 +165,10 @@ async fn run_isolate(
     quota_ms: u64,
     quota_mem: usize,
     pid: u32,
-) -> Result<i32, String> {
+) -> Result<Value, String> {
     init_v8();
     let fut = tokio::task::spawn_blocking(move || {
+        let start = Instant::now();
         let mut isolate = v8::Isolate::new(v8::CreateParams::default().heap_limits(0, quota_mem));
         let handle_scope = &mut v8::HandleScope::new(&mut isolate);
         let context = v8::Context::new(handle_scope, Default::default());
@@ -200,10 +201,18 @@ async fn run_isolate(
             let _ = Box::from_raw(context_ptr);
         }
         
-        Ok::<i32, String>(value.int32_value(scope).unwrap_or_default())
+        let mut stats = v8::HeapStatistics::default();
+        isolate.get_heap_statistics(&mut stats);
+        let mem_bytes = stats.used_heap_size();
+        let cpu_ms = start.elapsed().as_millis() as u64;
+        Ok::<(i32, u64, usize), String>((value.int32_value(scope).unwrap_or_default(), cpu_ms, mem_bytes))
     });
     match timeout(Duration::from_millis(quota_ms), fut).await {
-        Ok(Ok(Ok(v))) => Ok(v),
+        Ok(Ok(Ok((exit, cpu_ms, mem_bytes)))) => Ok(serde_json::json!({
+            "exitCode": exit,
+            "cpuMs": cpu_ms,
+            "memBytes": mem_bytes
+        })),
         Ok(Ok(Err(e))) => Err(e),
         Ok(Err(e)) => Err(e.to_string()),
         Err(_) => Err("timeout".into()),
