@@ -38,6 +38,14 @@ pub fn snapshot() -> Result<Connection, String> {
         eprintln!("Database Error: {}", msg);
         return Err(msg);
     }
+    if let Err(e) = conn.execute(
+        "CREATE TABLE IF NOT EXISTS snapshots (name TEXT PRIMARY KEY, json TEXT)",
+        [],
+    ) {
+        let msg = e.to_string();
+        eprintln!("Database Error: {}", msg);
+        return Err(msg);
+    }
     Ok(conn)
 }
 

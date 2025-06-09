@@ -29,6 +29,17 @@ fn save_snapshot(json: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn save_named_snapshot(name: String, json: String) -> Result<(), String> {
+    let conn = db::snapshot()?;
+    conn.execute(
+        "INSERT OR REPLACE INTO snapshots (name, json) VALUES (?1, ?2)",
+        params![name, json],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 fn load_snapshot() -> Result<Option<Value>, String> {
     let conn = db::snapshot()?;
     let mut stmt = conn
@@ -36,6 +47,19 @@ fn load_snapshot() -> Result<Option<Value>, String> {
         .map_err(|e| e.to_string())?;
     let result: Option<String> = stmt
         .query_row([], |row| row.get(0))
+        .optional()
+        .map_err(|e| e.to_string())?;
+    Ok(result.map(|s| serde_json::from_str(&s).unwrap()))
+}
+
+#[tauri::command]
+fn load_named_snapshot(name: String) -> Result<Option<Value>, String> {
+    let conn = db::snapshot()?;
+    let mut stmt = conn
+        .prepare("SELECT json FROM snapshots WHERE name=?1")
+        .map_err(|e| e.to_string())?;
+    let result: Option<String> = stmt
+        .query_row(params![name], |row| row.get(0))
         .optional()
         .map_err(|e| e.to_string())?;
     Ok(result.map(|s| serde_json::from_str(&s).unwrap()))
@@ -193,6 +217,8 @@ fn main() {
             load_fs,
             save_snapshot,
             load_snapshot,
+            save_named_snapshot,
+            load_named_snapshot,
             run_isolate,
             syscall_response
         ])
