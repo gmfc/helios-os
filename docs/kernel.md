@@ -69,6 +69,19 @@ PID %CPU %MEM TTY COMMAND
 3  0.0  0.1 ?   ps
 ```
 
+### `/proc` filesystem
+
+Runtime information is exposed through a virtual tree under `/proc`. Nothing is
+stored on disk; entries are generated on demand.
+
+- `/proc/<pid>/status` – text file with `pid`, `uid`, `cpuMs`, `memBytes`, `tty`
+  and command line.
+- `/proc/<pid>/fd/` – directory listing open descriptor numbers. Each file
+  contains the target path of that descriptor.
+
+This layout mirrors Linux behaviour and lets players introspect processes from
+userland utilities.
+
 ### Reboot and restore
 
 The `/sbin/reboot` command calls `kernel.reboot()`. This persists the current

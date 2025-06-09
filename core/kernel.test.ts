@@ -143,6 +143,21 @@ async function run() {
     'windows should restore identically'
   );
   console.log('Kernel snapshot save/load test passed.');
+
+  // /proc filesystem
+  const procKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  const procPid = procKernel['createProcess']();
+  const procPcb = procKernel['state'].processes.get(procPid);
+  procKernel['state'].fs.createDirectory('/tmp', 0o755);
+  procKernel['state'].fs.createFile('/tmp/foo.txt', 'bar', 0o644);
+  const f = await procKernel['syscall_open'](procPcb, '/tmp/foo.txt', 'r');
+  const fdList = await procKernel['syscall_readdir'](`/proc/${procPid}/fd`);
+  assert(fdList.some((n: any) => n.path === `/proc/${procPid}/fd/${f}`), '/proc/<pid>/fd lists open descriptors');
+  const sfd = await procKernel['syscall_open'](procPcb, `/proc/${procPid}/status`, 'r');
+  const stat = await procKernel['syscall_read'](procPcb, sfd, 1024);
+  const text = new TextDecoder().decode(stat);
+  assert(text.includes('pid\t' + procPid) || text.includes('pid:\t' + procPid), 'status file readable');
+  console.log('/proc filesystem test passed.');
 }
 
 run();
