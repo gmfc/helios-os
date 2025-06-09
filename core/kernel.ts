@@ -257,6 +257,14 @@ export class Kernel {
       });
     }
 
+    for (const pid of kernel.state.processes.keys()) {
+      kernel.registerProc(pid);
+      const pcb = kernel.state.processes.get(pid)!;
+      for (const fd of pcb.fds.keys()) {
+        kernel.registerProcFd(pid, fd);
+      }
+    }
+
     kernel.readyQueue = Array.from(kernel.state.processes.values()).filter(p => !p.exited);
 
     return kernel;
@@ -348,6 +356,7 @@ export class Kernel {
     const processes = new Map(this.state.processes);
     processes.set(pid, pcb);
     this.state = { ...this.state, processes };
+    this.registerProc(pid);
     return pid;
   }
 
@@ -355,6 +364,55 @@ export class Kernel {
     const processes = new Map(this.state.processes);
     processes.delete(pid);
     this.state = { ...this.state, processes };
+  }
+
+  private ensureProcRoot() {
+    if (!this.state.fs.getNode('/proc')) {
+      this.state.fs.createVirtualDirectory('/proc', 0o555);
+    }
+  }
+
+  private registerProc(pid: ProcessID) {
+    this.ensureProcRoot();
+    if (!this.state.fs.getNode(`/proc/${pid}`)) {
+      this.state.fs.createVirtualDirectory(`/proc/${pid}`, 0o555);
+    }
+    if (!this.state.fs.getNode(`/proc/${pid}/status`)) {
+      this.state.fs.createVirtualFile(`/proc/${pid}/status`, () => this.procStatus(pid), 0o444);
+    }
+    if (!this.state.fs.getNode(`/proc/${pid}/fd`)) {
+      this.state.fs.createVirtualDirectory(`/proc/${pid}/fd`, 0o555);
+    }
+  }
+
+  private registerProcFd(pid: ProcessID, fd: number) {
+    const pcb = this.state.processes.get(pid);
+    if (!pcb) return;
+    if (!this.state.fs.getNode(`/proc/${pid}/fd/${fd}`)) {
+      this.state.fs.createVirtualFile(`/proc/${pid}/fd/${fd}`, () => {
+        const entry = pcb.fds.get(fd);
+        return new TextEncoder().encode(entry ? entry.path : '');
+      }, 0o444);
+    }
+  }
+
+  private removeProcFd(pid: ProcessID, fd: number) {
+    const path = `/proc/${pid}/fd/${fd}`;
+    if (this.state.fs.getNode(path)) {
+      this.state.fs.remove(path);
+    }
+  }
+
+  private procStatus(pid: ProcessID): Uint8Array {
+    const pcb = this.state.processes.get(pid);
+    if (!pcb) return new Uint8Array();
+    const enc = new TextEncoder();
+    const cmd = pcb.argv ? pcb.argv.join(' ') : '';
+    const out =
+      `pid:\t${pid}\nuid:\t${pcb.uid}\n` +
+      `cpuMs:\t${pcb.cpuMs}\nmemBytes:\t${pcb.memBytes}\n` +
+      `tty:\t${pcb.tty ?? ''}\ncmd:\t${cmd}\n`;
+    return enc.encode(out);
   }
 
   private createSyscallDispatcher(pid: ProcessID): SyscallDispatcher {
@@ -432,33 +490,6 @@ export class Kernel {
   // --- Syscall Implementations ---
 
   private async syscall_open(pcb: ProcessControlBlock, path: string, flags: string): Promise<FileDescriptor> {
-    if (this.isProcPath(path)) {
-      const parts = path.split('/').filter(p => p);
-      if (parts.length < 3) {
-        throw new Error(`EISDIR: illegal operation on a directory, open '${path}'`);
-      }
-
-      const pid = parseInt(parts[1], 10);
-      const target = this.state.processes.get(pid);
-      if (!target) {
-        throw new Error(`ENOENT: no such file or directory, open '${path}'`);
-      }
-
-      if (parts[2] === 'status' && parts.length === 3) {
-        // valid
-      } else if (parts[2] === 'fd' && parts.length === 4) {
-        const vfd = parseInt(parts[3], 10);
-        if (!target.fds.has(vfd)) {
-          throw new Error(`ENOENT: no such file or directory, open '${path}'`);
-        }
-      } else {
-        throw new Error(`ENOENT: no such file or directory, open '${path}'`);
-      }
-
-      const fd = pcb.nextFd++;
-      pcb.fds.set(fd, { path, position: 0, flags, virtual: true });
-      return fd;
-    }
 
     let node = this.state.fs.getNode(path);
     if (!node) {
@@ -500,7 +531,8 @@ export class Kernel {
     if (flags.includes('a') && node.data) {
       position = node.data.length;
     }
-    pcb.fds.set(fd, { path, position, flags });
+    pcb.fds.set(fd, { path, position, flags, virtual: node.virtual });
+    this.registerProcFd(pcb.pid, fd);
     return fd;
   }
 
@@ -509,20 +541,15 @@ export class Kernel {
     if (!entry) {
       throw new Error('EBADF: bad file descriptor');
     }
-    if (entry.virtual) {
-      const data = this.procReadFile(entry.path).subarray(entry.position, entry.position + length);
-      entry.position += data.length;
-      return data;
-    }
 
     const node = this.state.fs.getNode(entry.path);
-    if (!node || node.kind !== 'file' || !node.data) {
+    if (!node || node.kind !== 'file') {
       throw new Error('EBADF: bad file descriptor');
     }
 
-    const data = node.data.subarray(entry.position, entry.position + length);
-    entry.position += data.length;
-    return data;
+    const bytes = this.state.fs.readFile(entry.path).subarray(entry.position, entry.position + length);
+    entry.position += bytes.length;
+    return bytes;
   }
 
   private async syscall_write(pcb: ProcessControlBlock, fd: FileDescriptor, data: Uint8Array): Promise<number> {
@@ -571,6 +598,7 @@ export class Kernel {
       return -1; // EBADF
     }
     pcb.fds.delete(fd);
+    this.removeProcFd(pcb.pid, fd);
     return 0;
   }
 
@@ -617,98 +645,6 @@ export class Kernel {
     return this.state.udp.send(sock, data);
   }
 
-  // --- /proc helpers ---
-  private isProcPath(path: string): boolean {
-    return path === '/proc' || path.startsWith('/proc/');
-  }
-
-  private procReaddir(path: string): FileSystemNode[] {
-    const parts = path.split('/').filter(p => p);
-    const now = new Date();
-
-    if (path === '/proc') {
-      return Array.from(this.state.processes.keys()).map(pid => ({
-        path: `/proc/${pid}`,
-        kind: 'dir',
-        permissions: 0o555,
-        uid: 0,
-        gid: 0,
-        createdAt: now,
-        modifiedAt: now,
-      }));
-    }
-
-    if (parts.length === 2) {
-      const pid = parseInt(parts[1], 10);
-      const pcb = this.state.processes.get(pid);
-      if (!pcb) throw new Error(`ENOENT: no such file or directory, scandir '${path}'`);
-      return [
-        {
-          path: `/proc/${pid}/status`,
-          kind: 'file',
-          permissions: 0o444,
-          uid: 0,
-          gid: 0,
-          createdAt: now,
-          modifiedAt: now,
-        },
-        {
-          path: `/proc/${pid}/fd`,
-          kind: 'dir',
-          permissions: 0o555,
-          uid: 0,
-          gid: 0,
-          createdAt: now,
-          modifiedAt: now,
-        },
-      ];
-    }
-
-    if (parts.length === 3 && parts[2] === 'fd') {
-      const pid = parseInt(parts[1], 10);
-      const pcb = this.state.processes.get(pid);
-      if (!pcb) throw new Error(`ENOENT: no such file or directory, scandir '${path}'`);
-      return Array.from(pcb.fds.keys()).map(fd => ({
-        path: `/proc/${pid}/fd/${fd}`,
-        kind: 'file',
-        permissions: 0o444,
-        uid: 0,
-        gid: 0,
-        createdAt: now,
-        modifiedAt: now,
-      }));
-    }
-
-    throw new Error(`ENOENT: no such file or directory, scandir '${path}'`);
-  }
-
-  private procReadFile(path: string): Uint8Array {
-    const parts = path.split('/').filter(p => p);
-    const enc = new TextEncoder();
-
-    if (parts.length === 3 && parts[2] === 'status') {
-      const pid = parseInt(parts[1], 10);
-      const pcb = this.state.processes.get(pid);
-      if (!pcb) throw new Error(`ENOENT: no such file or directory, open '${path}'`);
-      const cmd = pcb.argv ? pcb.argv.join(' ') : '';
-      const out =
-        `pid:\t${pid}\nuid:\t${pcb.uid}\n` +
-        `cpuMs:\t${pcb.cpuMs}\nmemBytes:\t${pcb.memBytes}\n` +
-        `tty:\t${pcb.tty ?? ''}\ncmd:\t${cmd}\n`;
-      return enc.encode(out);
-    }
-
-    if (parts.length === 4 && parts[2] === 'fd') {
-      const pid = parseInt(parts[1], 10);
-      const fd = parseInt(parts[3], 10);
-      const pcb = this.state.processes.get(pid);
-      const entry = pcb?.fds.get(fd);
-      if (!pcb || !entry) throw new Error(`ENOENT: no such file or directory, open '${path}'`);
-      return enc.encode(entry.path);
-    }
-
-    throw new Error(`ENOENT: no such file or directory, open '${path}'`);
-  }
 
   private syscall_draw(html: Uint8Array, opts: WindowOpts): number {
     const id = this.state.windows.length;
@@ -732,9 +668,6 @@ export class Kernel {
   }
 
   private async syscall_readdir(path: string): Promise<FileSystemNode[]> {
-    if (this.isProcPath(path)) {
-      return this.procReaddir(path);
-    }
     return this.state.fs.listDirectory(path);
   }
 

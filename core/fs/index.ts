@@ -47,6 +47,8 @@ export interface FileSystemNode {
   modifiedAt: Date;
   data?: Uint8Array;
   children?: Map<string, FileSystemNode>;
+  virtual?: boolean;
+  onRead?: () => Uint8Array | FileSystemNode[];
 }
 
 export type FileSystemSnapshot = {
@@ -220,6 +222,78 @@ export class InMemoryFileSystem implements AsyncFileSystem {
   }
 
   /**
+   * Creates a virtual file whose contents are provided on demand.
+   */
+  public createVirtualFile(
+    path: string,
+    onRead: () => Uint8Array,
+    permissions: Permissions,
+  ): FileSystemNode {
+    if (this.nodes.has(path)) {
+      throw new Error(`EEXIST: file already exists, open '${path}'`);
+    }
+
+    const now = new Date();
+    const parentPath = this.getParentPath(path);
+    const parent = this.nodes.get(parentPath);
+
+    if (!parent || parent.kind !== 'dir') {
+      throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+    }
+
+    const fileName = this.getBaseName(path);
+    const fileNode: FileSystemNode = {
+      path,
+      kind: 'file',
+      permissions,
+      uid: 0,
+      gid: 0,
+      createdAt: now,
+      modifiedAt: now,
+      virtual: true,
+      onRead,
+    };
+
+    parent.children?.set(fileName, fileNode);
+    this.nodes.set(path, fileNode);
+    return fileNode;
+  }
+
+  /**
+   * Creates a virtual directory.
+   */
+  public createVirtualDirectory(path: string, permissions: Permissions): FileSystemNode {
+    if (this.nodes.has(path)) {
+      throw new Error(`EEXIST: file already exists, mkdir '${path}'`);
+    }
+
+    const now = new Date();
+    const parentPath = this.getParentPath(path);
+    const parent = this.nodes.get(parentPath);
+
+    if (!parent || parent.kind !== 'dir') {
+      throw new Error(`ENOENT: no such file or directory, mkdir '${path}'`);
+    }
+
+    const directoryName = this.getBaseName(path);
+    const directoryNode: FileSystemNode = {
+      path,
+      kind: 'dir',
+      permissions,
+      uid: 0,
+      gid: 0,
+      createdAt: now,
+      modifiedAt: now,
+      children: new Map(),
+      virtual: true,
+    };
+
+    parent.children?.set(directoryName, directoryNode);
+    this.nodes.set(path, directoryNode);
+    return directoryNode;
+  }
+
+  /**
    * Overwrites the content of an existing file or creates it if it does not exist.
    */
   public writeFile(path: string, data: Uint8Array): FileSystemNode {
@@ -245,6 +319,10 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     if (node.kind !== 'file') {
       throw new Error(`EISDIR: illegal operation on a directory, read`);
     }
+    if (node.virtual && node.onRead) {
+      const data = node.onRead();
+      return data instanceof Uint8Array ? data : new Uint8Array();
+    }
     return node.data || new Uint8Array();
   }
 
@@ -268,8 +346,45 @@ export class InMemoryFileSystem implements AsyncFileSystem {
    * Create a deep copy of the filesystem preserving the persist hook.
    */
   public clone(): InMemoryFileSystem {
-    const fs = new InMemoryFileSystem(this.getSnapshot(), this.persistHook);
+    const copyNode = (node: FileSystemNode): FileSystemNode => {
+      const n: FileSystemNode = {
+        path: node.path,
+        kind: node.kind,
+        permissions: node.permissions,
+        uid: node.uid,
+        gid: node.gid,
+        createdAt: new Date(node.createdAt),
+        modifiedAt: new Date(node.modifiedAt),
+        virtual: node.virtual,
+        onRead: node.onRead,
+      };
+      if (node.kind === 'file' && node.data) {
+        n.data = new Uint8Array(node.data);
+      }
+      if (node.kind === 'dir') {
+        n.children = new Map();
+        for (const [name, child] of node.children ?? []) {
+          const c = copyNode(child);
+          n.children.set(name, c);
+        }
+      }
+      return n;
+    };
+
+    const fs = Object.create(InMemoryFileSystem.prototype) as InMemoryFileSystem;
+    fs.persistHook = this.persistHook;
     fs.mounts = new Map(this.mounts);
+    fs.root = copyNode(this.root);
+    fs.nodes = new Map();
+    const populate = (node: FileSystemNode) => {
+      fs.nodes.set(node.path, node);
+      if (node.kind === 'dir') {
+        for (const child of node.children?.values() ?? []) {
+          populate(child);
+        }
+      }
+    };
+    populate(fs.root);
     return fs;
   }
 
@@ -362,6 +477,10 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     const node = this.nodes.get(path);
     if (!node || node.kind !== 'dir') {
       throw new Error(`ENOTDIR: not a directory, scandir '${path}'`);
+    }
+    if (node.virtual && node.onRead) {
+      const res = node.onRead();
+      return Array.isArray(res) ? res : [];
     }
     return Array.from(node.children?.values() ?? []);
   }
