@@ -108,6 +108,8 @@ export class Kernel {
   private readyQueue: ProcessControlBlock[];
   private running = false;
   private initPid: ProcessID | null = null;
+  private pendingNics: Array<any> | null = null;
+  private networkingStarted = false;
 
   private constructor(fs: InMemoryFileSystem) {
     this.state = {
@@ -134,8 +136,9 @@ export class Kernel {
         ? new InMemoryFileSystem(snapshot, createPersistHook())
         : bootstrapFileSystem();
     const kernel = new Kernel(fs);
-    const lo = new NIC('lo0', '00:00:00:00:00:00', '127.0.0.1');
-    kernel.state.nics.set(lo.id, lo);
+    kernel.pendingNics = [
+      { id: 'lo0', mac: '00:00:00:00:00:00', ip: '127.0.0.1', rx: [], tx: [] }
+    ];
     if (typeof window !== 'undefined') {
       listen('syscall', async (event: any) => {
         const { id, pid, call, args } = event.payload as any;
@@ -173,15 +176,7 @@ export class Kernel {
     kernel.state.services = new Map(snapshot.services ?? []);
     kernel.initPid = snapshot.initPid ?? null;
 
-    kernel.state.nics = new Map();
-    if (snapshot.nics) {
-      for (const [id, nic] of snapshot.nics) {
-        const n = new NIC(nic.id, nic.mac, nic.ip);
-        n.rx = nic.rx ?? [];
-        n.tx = nic.tx ?? [];
-        kernel.state.nics.set(id, n);
-      }
-    }
+    kernel.pendingNics = snapshot.nics ? Array.from(snapshot.nics) : [];
 
     kernel.state.tcp = new TCP();
     if (snapshot.tcp) {
@@ -259,6 +254,23 @@ export class Kernel {
     const services = new Map(this.state.services);
     services.delete(name);
     this.state = { ...this.state, services };
+  }
+
+  public startNetworking(): void {
+    if (this.networkingStarted) return;
+    this.networkingStarted = true;
+    this.state.nics = new Map();
+    const list = this.pendingNics ?? [];
+    if (list.length === 0) {
+      list.push({ id: 'lo0', mac: '00:00:00:00:00:00', ip: '127.0.0.1', rx: [], tx: [] });
+    }
+    for (const [, nic] of list.entries()) {
+      const n = new NIC(nic.id, nic.mac, nic.ip);
+      n.rx = nic.rx ?? [];
+      n.tx = nic.tx ?? [];
+      this.state.nics.set(n.id, n);
+    }
+    this.pendingNics = null;
   }
 
   private createProcess(): ProcessID {
