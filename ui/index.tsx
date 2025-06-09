@@ -31,16 +31,27 @@ const App = () => {
     const [loggedIn, setLoggedIn] = useState(false);
     const [loginError, setLoginError] = useState('');
 
-    useEffect(() => {
+    const startKernel = useCallback(async () => {
         bootStartRef.current = performance.now();
-        Kernel.create().then(kernel => {
-            kernelRef.current = kernel;
-            kernel.start().catch(console.error);
-        });
+        const kernel = await Kernel.create();
+        kernelRef.current = kernel;
+        kernel.start().catch(console.error);
+    }, []);
+
+    useEffect(() => {
+        startKernel();
 
         return () => {
             kernelRef.current = null;
         };
+    }, [startKernel]);
+
+    useEffect(() => {
+        const handler = () => {
+            kernelRef.current?.stop();
+        };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
     }, []);
 
     useEffect(() => {
@@ -113,6 +124,16 @@ const App = () => {
         eventBus.on('boot.shellReady', handler);
         return () => eventBus.off('boot.shellReady', handler);
     }, []);
+
+    useEffect(() => {
+        const handler = () => {
+            setShellReady(false);
+            setLoggedIn(false);
+            startKernel();
+        };
+        eventBus.on('system.reboot', handler);
+        return () => eventBus.off('system.reboot', handler);
+    }, [startKernel]);
 
     const handleResize = useCallback(() => {
         fitAddonRef.current?.fit();
