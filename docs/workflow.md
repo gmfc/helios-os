@@ -12,9 +12,18 @@ This project uses `pnpm` for managing Node dependencies and scripts.
 
     ```sh
     pnpm dev
+
+    # Compile the Rust host with optimizations
+    pnpm dev:release
     ```
 
-3. Run the test suite before committing:
+3. Build a release bundle for distribution:
+
+    ```sh
+    pnpm build:release
+    ```
+
+4. Run the test suite before committing:
 
     ```sh
     pnpm test
