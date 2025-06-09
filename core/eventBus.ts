@@ -10,6 +10,7 @@ export interface EventMap {
   draw: DrawPayload;
   'desktop.createWindow': DrawPayload;
   'boot.shellReady': { pid: number };
+  'system.reboot': {};
 }
 
 export type Handler<T = any> = (payload: T) => void;
