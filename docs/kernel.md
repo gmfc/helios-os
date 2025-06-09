@@ -24,6 +24,28 @@ a message bus to the kernel.
 
 When the kernel stops or reboots the host stores the current snapshot to disk. On the next boot `Kernel.create()` loads that snapshot so all windows and services resume exactly where they left off. Users can also manage save slots with `save_snapshot_named(name)` and `load_snapshot_named(name)` through the `/sbin/snapshot` utility.
 
+### Virtual files
+
+The filesystem supports *virtual nodes* that do not persist to disk. Each `FileSystemNode` may set `virtual: true` and provide an `onRead` callback:
+
+```ts
+interface FileSystemNode {
+    path: string;
+    kind: 'file' | 'dir';
+    permissions: number;
+    uid: number;
+    gid: number;
+    createdAt: Date;
+    modifiedAt: Date;
+    data?: Uint8Array;
+    children?: Map<string, FileSystemNode>;
+    virtual?: boolean;
+    onRead?: () => Uint8Array | FileSystemNode[];
+}
+```
+
+For files the callback returns the contents on demand. For directories it returns a list of nodes to expose. This mechanism powers `/proc` and can be used by developers to add custom runtime information.
+
 ### Syscalls
 
 User programs interact with the kernel through an asynchronous syscall dispatcher. The table below lists all calls currently supported.
@@ -74,13 +96,40 @@ PID %CPU %MEM TTY COMMAND
 Runtime information is exposed through a virtual tree under `/proc`. Nothing is
 stored on disk; entries are generated on demand.
 
-- `/proc/<pid>/status` – text file with `pid`, `uid`, `cpuMs`, `memBytes`, `tty`
-  and command line.
-- `/proc/<pid>/fd/` – directory listing open descriptor numbers. Each file
-  contains the target path of that descriptor.
+Creation steps for each process:
+
+1. `ensureProcRoot()` creates the `/proc` directory if missing.
+2. `registerProc(pid)` adds `/proc/<pid>` and a virtual `status` file whose
+   callback serializes the PCB.
+3. A virtual `fd` directory is created for descriptor listings.
+4. `registerProcFd(pid, fd)` creates `/proc/<pid>/fd/<fd>` whenever a new
+   descriptor is opened. `removeProcFd()` deletes the entry on close.
+
+Reading `/proc/<pid>/status` prints details such as:
+
+```text
+pid:\t5
+uid:\t1000
+cpuMs:\t42
+memBytes:\t2048
+tty:\t/dev/tty0
+cmd:\tping 127.0.0.1
+```
+
+Listing `/proc/<pid>/fd` shows numbers for each open descriptor, and each file
+contains the resolved path:
+
+```text
+$ ls /proc/5/fd
+0 1 2 3
+$ cat /proc/5/fd/3
+/tmp/foo.txt
+```
 
 This layout mirrors Linux behaviour and lets players introspect processes from
-userland utilities.
+userland utilities. Developers can extend `/proc` by creating additional
+virtual files or directories under `/proc/<pid>` using the callbacks described
+above.
 
 ### Reboot and restore
 
