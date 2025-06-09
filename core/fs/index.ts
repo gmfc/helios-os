@@ -10,6 +10,7 @@ import {
   LOGIN_SOURCE,
   BASH_SOURCE,
   REBOOT_SOURCE,
+  SNAPSHOT_SOURCE,
   CAT_MANIFEST,
   ECHO_MANIFEST,
   NANO_MANIFEST,
@@ -21,6 +22,7 @@ import {
   LOGIN_MANIFEST,
   BASH_MANIFEST,
   REBOOT_MANIFEST,
+  SNAPSHOT_MANIFEST,
 } from './bin';
 import { createPersistHook } from './sqlite';
 
@@ -113,6 +115,8 @@ export class InMemoryFileSystem {
     this.createFile('/sbin/init.manifest.json', INIT_MANIFEST, 0o644);
     this.createFile('/sbin/reboot', REBOOT_SOURCE, 0o755);
     this.createFile('/sbin/reboot.manifest.json', REBOOT_MANIFEST, 0o644);
+    this.createFile('/sbin/snapshot', SNAPSHOT_SOURCE, 0o755);
+    this.createFile('/sbin/snapshot.manifest.json', SNAPSHOT_MANIFEST, 0o644);
     this.createFile('/bin/login', LOGIN_SOURCE, 0o755);
     this.createFile('/bin/login.manifest.json', LOGIN_MANIFEST, 0o644);
     this.createFile('/bin/bash', BASH_SOURCE, 0o755);

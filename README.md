@@ -185,6 +185,7 @@ Kernel denies undeclared syscalls.
   * Rollback: operator replaces diff chain; clients auto-replay.
 * `reboot` saves the current snapshot and reloads it on next boot so services
   and open windows persist.
+* `snapshot save <name>` stores the state and `snapshot load <name>` restores it.
 
 ---
 

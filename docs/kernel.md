@@ -51,3 +51,4 @@ snapshot via `save_snapshot()` and stops the scheduler. On the next boot
 the desktop resumes exactly where it left off. Calling
 `load_snapshot_named(name)` loads the requested snapshot, saves it as the active
 one and reboots automatically so the restored state becomes live.
+The `/sbin/snapshot` utility provides `snapshot save <name>` and `snapshot load <name>` for manual state management.
