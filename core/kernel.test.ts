@@ -158,6 +158,21 @@ async function run() {
   const text = new TextDecoder().decode(stat);
   assert(text.includes('pid\t' + procPid) || text.includes('pid:\t' + procPid), 'status file readable');
   console.log('/proc filesystem test passed.');
+
+  try {
+    await procKernel['syscall_open'](procPcb, `/proc/${procPid + 1}/status`, 'r');
+    assert.fail('opening nonexistent /proc entry should throw');
+  } catch (e: any) {
+    assert(e.message.includes('ENOENT'), 'ENOENT expected for missing process');
+  }
+
+  try {
+    await procKernel['syscall_open'](procPcb, `/proc/${procPid}/fd/${procPcb.nextFd}`, 'r');
+    assert.fail('opening nonexistent fd should throw');
+  } catch (e: any) {
+    assert(e.message.includes('ENOENT'), 'ENOENT expected for missing fd');
+  }
+  console.log('Kernel /proc ENOENT tests passed.');
 }
 
 run();
