@@ -9,6 +9,7 @@ export interface DrawPayload {
 export interface EventMap {
   draw: DrawPayload;
   'desktop.createWindow': DrawPayload;
+  'boot.shellReady': { pid: number };
 }
 
 export type Handler<T = any> = (payload: T) => void;

@@ -325,6 +325,17 @@ export const PS_MANIFEST = JSON.stringify({
   syscalls: ['ps', 'write']
 });
 
+export const BASH_SOURCE = `
+  async () => {
+    return 0;
+  }
+`;
+
+export const BASH_MANIFEST = JSON.stringify({
+  name: 'bash',
+  syscalls: ['open', 'read', 'write', 'close', 'spawn']
+});
+
 export const LOGIN_SOURCE = `
   async (syscall, argv) => {
     const STDOUT_FD = 1;

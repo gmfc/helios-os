@@ -25,22 +25,30 @@ const App = () => {
     const windowManagerRef = useRef<WindowManagerHandles>(null);
     const [commandLine, setCommandLine] = useState('');
     const [isBusy, setIsBusy] = useState(false);
+    const [shellReady, setShellReady] = useState(false);
 
     useEffect(() => {
-        let cleanup: (() => void) | undefined;
-
         Kernel.create().then(kernel => {
             kernelRef.current = kernel;
             kernel.start().catch(console.error);
         });
 
+        return () => {
+            kernelRef.current = null;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!shellReady) return;
+        let cleanup: (() => void) | undefined;
+
         const term = xtermRef.current?.terminal;
         if (term) {
             fitAddonRef.current = new FitAddon();
             term.loadAddon(fitAddonRef.current);
-            
+
             setTimeout(() => handleResize(), 1);
-            
+
             term.writeln('Welcome to Helios-OS Terminal');
             term.write('$ ');
 
@@ -70,9 +78,8 @@ const App = () => {
 
         return () => {
             cleanup?.();
-            kernelRef.current = null;
         };
-    }, []);
+    }, [shellReady]);
 
     useEffect(() => {
         const handler = (payload: DrawPayload) => {
@@ -92,13 +99,19 @@ const App = () => {
         return () => eventBus.off('desktop.createWindow', handler);
     }, []);
 
+    useEffect(() => {
+        const handler = () => setShellReady(true);
+        eventBus.on('boot.shellReady', handler);
+        return () => eventBus.off('boot.shellReady', handler);
+    }, []);
+
     const handleResize = useCallback(() => {
         fitAddonRef.current?.fit();
     }, []);
 
     const onTerminalData = async (data: string) => {
         const term = xtermRef.current?.terminal;
-        if (!term || isBusy) return;
+        if (!term || isBusy || !shellReady) return;
 
         const code = data.charCodeAt(0);
         if (code === 13) { // Enter
@@ -126,11 +139,15 @@ const App = () => {
 
     return (
         <WindowManager ref={windowManagerRef} onResize={handleResize}>
-            <XTerm
-                ref={xtermRef}
-                options={{ theme, cursorBlink: true, convertEol: true }}
-                onData={onTerminalData}
-            />
+            {shellReady ? (
+                <XTerm
+                    ref={xtermRef}
+                    options={{ theme, cursorBlink: true, convertEol: true }}
+                    onData={onTerminalData}
+                />
+            ) : (
+                <div style={{ color: '#d4d4d4', padding: '10px' }}>Booting...</div>
+            )}
         </WindowManager>
     );
 };
