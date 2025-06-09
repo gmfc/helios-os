@@ -379,6 +379,38 @@ export const SLEEP_MANIFEST = JSON.stringify({
   syscalls: []
 });
 
+export const ULIMIT_SOURCE = `
+  async (syscall, argv) => {
+    const STDOUT_FD = 1;
+    const encode = (s) => new TextEncoder().encode(s);
+
+    if (argv.length === 0) {
+      const res = await syscall('set_quota');
+      await syscall('write', STDOUT_FD, encode('cpu ' + res.quotaMs + ' mem ' + res.quotaMem + '\n'));
+      return 0;
+    }
+
+    let ms;
+    let mem;
+    for (let i = 0; i < argv.length; i++) {
+      if (argv[i] === '-t') {
+        ms = parseInt(argv[i + 1] || '0', 10);
+        i++;
+      } else if (argv[i] === '-m') {
+        mem = parseInt(argv[i + 1] || '0', 10);
+        i++;
+      }
+    }
+    await syscall('set_quota', ms, mem);
+    return 0;
+  }
+`;
+
+export const ULIMIT_MANIFEST = JSON.stringify({
+  name: 'ulimit',
+  syscalls: ['set_quota', 'write']
+});
+
 export const BASH_SOURCE = `
   async (syscall, argv) => {
     const STDOUT_FD = 1;
@@ -428,6 +460,10 @@ export const BASH_SOURCE = `
       return 1;
     }
 
+    const initLimits = await syscall('set_quota');
+    let quotaMs = initLimits.quotaMs;
+    let quotaMem = initLimits.quotaMem;
+
     let nextJob = 1;
     const jobs = [];
 
@@ -470,6 +506,25 @@ export const BASH_SOURCE = `
         continue;
       }
 
+      if (line.startsWith('ulimit')) {
+        const parts = line.split(/\s+/).slice(1);
+        if (parts.length === 0) {
+          await syscall('write', STDOUT_FD, encode('cpu ' + quotaMs + ' mem ' + quotaMem + '\n'));
+        } else {
+          for (let i = 0; i < parts.length; i++) {
+            if (parts[i] === '-t' && parts[i + 1]) {
+              quotaMs = parseInt(parts[i + 1], 10);
+              i++;
+            } else if (parts[i] === '-m' && parts[i + 1]) {
+              quotaMem = parseInt(parts[i + 1], 10);
+              i++;
+            }
+          }
+          await syscall('set_quota', quotaMs, quotaMem);
+        }
+        continue;
+      }
+
       if (line.startsWith('kill')) {
         const args = line.slice(4).trim().split(/\s+/).filter(a => a);
         for (const arg of args) {
@@ -504,7 +559,7 @@ export const BASH_SOURCE = `
         const code = await readFile('/bin/' + name);
         let m;
         try { m = JSON.parse(await readFile('/bin/' + name + '.manifest.json')); } catch {}
-        const pid = await syscall('spawn', code, { argv: args, syscalls: m ? m.syscalls : undefined, tty: ttyName });
+        const pid = await syscall('spawn', code, { argv: args, syscalls: m ? m.syscalls : undefined, tty: ttyName, quotaMs, quotaMem });
         const job = { id: nextJob++, pids: [pid], command: cmd, state: 'Running' };
         jobs.push(job);
         if (!bg) {
@@ -523,7 +578,7 @@ export const BASH_SOURCE = `
 
 export const BASH_MANIFEST = JSON.stringify({
   name: 'bash',
-  syscalls: ['open', 'read', 'write', 'close', 'spawn', 'ps', 'jobs', 'kill']
+  syscalls: ['open', 'read', 'write', 'close', 'spawn', 'ps', 'jobs', 'kill', 'set_quota']
 });
 
 export const LOGIN_SOURCE = `

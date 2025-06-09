@@ -459,6 +459,8 @@ export class Kernel {
           return await this.syscall_mount(args[0], args[1]);
         case 'unmount':
           return await this.syscall_unmount(args[0]);
+        case 'set_quota':
+          return this.syscall_set_quota(pcb, args[0], args[1]);
         case 'kill':
           return this.syscall_kill(args[0], args[1]);
         case 'snapshot':
@@ -715,6 +717,16 @@ export class Kernel {
     fsClone.unmount(path);
     this.state.fs = fsClone;
     return 0;
+  }
+
+  private syscall_set_quota(pcb: ProcessControlBlock, ms?: number, mem?: number) {
+    if (typeof ms === 'number' && !isNaN(ms)) {
+      pcb.quotaMs = ms;
+    }
+    if (typeof mem === 'number' && !isNaN(mem)) {
+      pcb.quotaMem = mem;
+    }
+    return { quotaMs: pcb.quotaMs, quotaMem: pcb.quotaMem };
   }
 
   private syscall_ps() {
