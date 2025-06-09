@@ -8,6 +8,7 @@ import {
   PS_SOURCE,
   INIT_SOURCE,
   LOGIN_SOURCE,
+  BASH_SOURCE,
   CAT_MANIFEST,
   ECHO_MANIFEST,
   NANO_MANIFEST,
@@ -17,6 +18,7 @@ import {
   PS_MANIFEST,
   INIT_MANIFEST,
   LOGIN_MANIFEST,
+  BASH_MANIFEST,
 } from './bin';
 import { createPersistHook } from './sqlite';
 
@@ -109,6 +111,8 @@ export class InMemoryFileSystem {
     this.createFile('/sbin/init.manifest.json', INIT_MANIFEST, 0o644);
     this.createFile('/bin/login', LOGIN_SOURCE, 0o755);
     this.createFile('/bin/login.manifest.json', LOGIN_MANIFEST, 0o644);
+    this.createFile('/bin/bash', BASH_SOURCE, 0o755);
+    this.createFile('/bin/bash.manifest.json', BASH_MANIFEST, 0o644);
 
     const bundled = (globalThis as any).BUNDLED_DISK_IMAGES as
       | Array<{ image: FileSystemSnapshot; path: string }>

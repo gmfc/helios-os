@@ -15,6 +15,7 @@ import { eventBus } from './eventBus';
 import { NIC } from './net/nic';
 import { TCP } from './net/tcp';
 import { UDP } from './net/udp';
+import { BASH_SOURCE } from './fs/bin';
 
 type ProcessID = number;
 type FileDescriptor = number;
@@ -78,6 +79,7 @@ export interface Snapshot {
   tcp: any;
   udp: any;
   services: any;
+  initPid: number | null;
 }
 
 /**
@@ -105,6 +107,7 @@ export class Kernel {
   private state: KernelState;
   private readyQueue: ProcessControlBlock[];
   private running = false;
+  private initPid: ProcessID | null = null;
 
   private constructor(fs: InMemoryFileSystem) {
     this.state = {
@@ -142,6 +145,21 @@ export class Kernel {
         await invoke('syscall_response', { id, result });
       });
     }
+    try {
+      const node = fs.getNode('/sbin/init');
+      if (node && node.kind === 'file' && node.data) {
+        const code = new TextDecoder().decode(node.data);
+        let syscalls: string[] | undefined;
+        const m = fs.getNode('/sbin/init.manifest.json');
+        if (m && m.kind === 'file' && m.data) {
+          const parsed = JSON.parse(new TextDecoder().decode(m.data));
+          if (Array.isArray(parsed.syscalls)) syscalls = parsed.syscalls;
+        }
+        kernel.initPid = await kernel.syscall_spawn(code, { syscalls });
+      }
+    } catch (e) {
+      console.error('Failed to spawn init:', e);
+    }
     return kernel;
   }
 
@@ -153,6 +171,7 @@ export class Kernel {
     kernel.state.nextPid = snapshot.nextPid ?? 1;
     kernel.state.windows = snapshot.windows ?? [];
     kernel.state.services = new Map(snapshot.services ?? []);
+    kernel.initPid = snapshot.initPid ?? null;
 
     kernel.state.nics = new Map();
     if (snapshot.nics) {
@@ -434,6 +453,9 @@ export class Kernel {
     pcb.code = code;
     pcb.argv = opts.argv ?? [];
     this.readyQueue.push(pcb);
+    if (code === BASH_SOURCE) {
+      eventBus.emit('boot.shellReady', { pid });
+    }
     return pid;
   }
 
@@ -538,6 +560,7 @@ export class Kernel {
       tcp: this.state.tcp,
       udp: this.state.udp,
       services: this.state.services,
+      initPid: this.initPid,
     };
 
     return JSON.parse(JSON.stringify(state, replacer));
