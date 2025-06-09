@@ -419,36 +419,52 @@ export class InMemoryFileSystem {
   }
 
   private serialize(): FileSystemSnapshot {
-    // Custom replacer to convert Map to Array for JSON.stringify
-    const replacer = (key, value) => {
-      if(value instanceof Map) {
+    // Custom replacer to convert Map and Uint8Array for JSON.stringify
+    const replacer = (_: string, value: any) => {
+      if (value instanceof Map) {
         return {
           dataType: 'Map',
           value: Array.from(value.entries()),
         };
-      } else {
-        return value;
       }
+      if (value instanceof Uint8Array) {
+        const str = typeof Buffer !== 'undefined'
+          ? Buffer.from(value).toString('base64')
+          : btoa(String.fromCharCode(...Array.from(value)));
+        return { dataType: 'Uint8Array', value: str };
+      }
+      return value;
     };
-    return JSON.parse(JSON.stringify({ root: this.root, nodes: this.nodes }, replacer));
+    return JSON.parse(
+      JSON.stringify({ root: this.root, nodes: this.nodes }, replacer),
+    );
   }
 
   private deserialize(snapshot: FileSystemSnapshot): FileSystemSnapshot {
-    const reviver = (key, value) => {
-        if(typeof value === 'object' && value !== null) {
-          if (value.dataType === 'Map') {
-            return new Map(value.value);
-          }
-          if (key === 'createdAt' || key === 'modifiedAt') {
-              return new Date(value);
-          }
+    const reviver = (key: string, value: any) => {
+      if (typeof value === 'object' && value !== null) {
+        if (value.dataType === 'Map') {
+          return new Map(value.value);
         }
-        return value;
+        if (value.dataType === 'Uint8Array') {
+          if (typeof Buffer !== 'undefined') {
+            return new Uint8Array(Buffer.from(value.value, 'base64'));
+          }
+          const bin = atob(value.value);
+          const arr = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          return arr;
+        }
+        if (key === 'createdAt' || key === 'modifiedAt') {
+          return new Date(value);
+        }
+      }
+      return value;
     };
     const parsed = JSON.parse(JSON.stringify(snapshot), reviver);
     return {
-        root: parsed.root,
-        nodes: parsed.nodes
+      root: parsed.root,
+      nodes: parsed.nodes,
     };
   }
 
