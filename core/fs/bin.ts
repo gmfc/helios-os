@@ -470,6 +470,33 @@ export const BASH_SOURCE = `
         continue;
       }
 
+      if (line.startsWith('kill')) {
+        const args = line.slice(4).trim().split(/\s+/).filter(a => a);
+        for (const arg of args) {
+          if (arg.startsWith('%')) {
+            const id = parseInt(arg.slice(1), 10);
+            let list;
+            try {
+              list = await syscall('jobs');
+            } catch {
+              list = jobs;
+            }
+            const job = list.find(j => j.id === id);
+            if (job) {
+              for (const pid of job.pids) {
+                await syscall('kill', pid);
+              }
+            }
+          } else {
+            const pid = parseInt(arg, 10);
+            if (!isNaN(pid)) {
+              await syscall('kill', pid);
+            }
+          }
+        }
+        continue;
+      }
+
       const bg = line.endsWith('&');
       const cmd = bg ? line.slice(0, -1).trim() : line;
       const [name, ...args] = cmd.split(' ');
@@ -496,7 +523,7 @@ export const BASH_SOURCE = `
 
 export const BASH_MANIFEST = JSON.stringify({
   name: 'bash',
-  syscalls: ['open', 'read', 'write', 'close', 'spawn', 'ps', 'jobs']
+  syscalls: ['open', 'read', 'write', 'close', 'spawn', 'ps', 'jobs', 'kill']
 });
 
 export const LOGIN_SOURCE = `
