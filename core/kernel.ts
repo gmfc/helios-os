@@ -1,10 +1,9 @@
 // Helios-OS Kernel
 // Implementation to follow based on the project roadmap. 
 
-import { InMemoryFileSystem, FileSystemNode, FileSystemSnapshot } from './fs';
+import { InMemoryFileSystem, FileSystemNode, FileSystemSnapshot, loadFileSystem } from './fs';
 import { bootstrapFileSystem } from './fs/pure';
 import {
-  loadSnapshot,
   createPersistHook,
   loadKernelSnapshot,
   persistKernelSnapshot,
@@ -134,10 +133,7 @@ export class Kernel {
       return Kernel.restore(full as Snapshot);
     }
 
-    const snapshot = await loadSnapshot();
-    const fs = snapshot
-        ? new InMemoryFileSystem(snapshot, createPersistHook())
-        : bootstrapFileSystem();
+    const fs = (await loadFileSystem()) ?? bootstrapFileSystem();
     const kernel = new Kernel(fs);
     kernel.pendingNics = [
       { id: 'lo0', mac: '00:00:00:00:00:00', ip: '127.0.0.1', rx: [], tx: [] }
