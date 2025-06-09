@@ -19,16 +19,16 @@ async function run() {
   const img = new InMemoryFileSystem();
   img.createFile('/foo.txt', 'bar', 0o644);
   const snap = img.getSnapshot();
-  kernel['syscall_mount'](snap, '/mnt');
+  await kernel['syscall_mount'](snap, '/mnt');
   assert(kernel['state'].fs.getNode('/mnt/foo.txt'), 'file mounted');
-  kernel['syscall_unmount']('/mnt');
+  await kernel['syscall_unmount']('/mnt');
   assert(!kernel['state'].fs.getNode('/mnt/foo.txt'), 'file unmounted');
   console.log('Kernel mount/unmount test passed.');
 
   const pid = kernel['createProcess']();
   const pcb = kernel['state'].processes.get(pid);
   try {
-    kernel['syscall_open'](pcb, '/', 'r');
+    await kernel['syscall_open'](pcb, '/', 'r');
     assert.fail('opening directory should throw');
   } catch (e: any) {
     assert(e.message.includes('EISDIR'), 'EISDIR error expected');
@@ -57,11 +57,11 @@ async function run() {
   fdKernel['state'].fs.createFile('/tmp/foo.txt', 'hello', 0o644);
   const pid3 = fdKernel['createProcess']();
   const pcb3 = fdKernel['state'].processes.get(pid3);
-  const fd = fdKernel['syscall_open'](pcb3, '/tmp/foo.txt', 'r');
+  const fd = await fdKernel['syscall_open'](pcb3, '/tmp/foo.txt', 'r');
   const snapFd = fdKernel.snapshot();
   const restoredFd: any = await (Kernel as any).restore(snapFd);
   const pcbRestored = restoredFd['state'].processes.get(pid3);
-  const data = restoredFd['syscall_read'](pcbRestored, fd, 5);
+  const data = await restoredFd['syscall_read'](pcbRestored, fd, 5);
   assert(new TextDecoder().decode(data) === 'hello', 'open descriptor restored');
   console.log('Kernel fd restore test passed.');
 
