@@ -23,6 +23,7 @@ const App = () => {
     const xtermRef = useRef<XTerm>(null);
     const fitAddonRef = useRef<FitAddon | null>(null);
     const kernelRef = useRef<Kernel | null>(null);
+    const bootStartRef = useRef<number>(0);
     const windowManagerRef = useRef<WindowManagerHandles>(null);
     const [commandLine, setCommandLine] = useState('');
     const [isBusy, setIsBusy] = useState(false);
@@ -31,6 +32,7 @@ const App = () => {
     const [loginError, setLoginError] = useState('');
 
     useEffect(() => {
+        bootStartRef.current = performance.now();
         Kernel.create().then(kernel => {
             kernelRef.current = kernel;
             kernel.start().catch(console.error);
@@ -103,7 +105,11 @@ const App = () => {
     }, []);
 
     useEffect(() => {
-        const handler = () => setShellReady(true);
+        const handler = () => {
+            const dur = performance.now() - bootStartRef.current;
+            console.log(`Boot completed in ${Math.round(dur)} ms`);
+            setShellReady(true);
+        };
         eventBus.on('boot.shellReady', handler);
         return () => eventBus.off('boot.shellReady', handler);
     }, []);
@@ -114,6 +120,7 @@ const App = () => {
 
     const handleLogin = useCallback((user: string, pass: string) => {
         if (user === 'user' && pass === 'password') {
+            kernelRef.current?.startNetworking();
             setLoggedIn(true);
             setLoginError('');
         } else {
