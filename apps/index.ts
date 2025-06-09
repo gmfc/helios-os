@@ -9,6 +9,7 @@ export * from './mkdir';
 export * from './rm';
 export * from './mv';
 export * from './ps';
+export * from './kill';
 export * from './init';
 export * from './login';
 export * from './bash';
@@ -24,6 +25,7 @@ import {
   RM_SOURCE,
   MV_SOURCE,
   PS_SOURCE,
+  KILL_SOURCE,
   INIT_SOURCE,
   LOGIN_SOURCE,
   BASH_SOURCE,
@@ -40,6 +42,7 @@ export const BUNDLED_APPS = new Map<string, string>([
   ['rm', RM_SOURCE],
   ['mv', MV_SOURCE],
   ['ps', PS_SOURCE],
+  ['kill', KILL_SOURCE],
   ['init', INIT_SOURCE],
   ['login', LOGIN_SOURCE],
   ['bash', BASH_SOURCE],
