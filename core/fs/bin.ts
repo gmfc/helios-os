@@ -325,3 +325,102 @@ export const PS_MANIFEST = JSON.stringify({
   syscalls: ['ps', 'write']
 });
 
+export const LOGIN_SOURCE = `
+  async (syscall, argv) => {
+    const STDOUT_FD = 1;
+    const STDERR_FD = 2;
+    const encode = (s) => new TextEncoder().encode(s);
+    const decode = (b) => new TextDecoder().decode(b);
+
+    async function readFile(path) {
+      const fd = await syscall('open', path, 'r');
+      let out = '';
+      while (true) {
+        const chunk = await syscall('read', fd, 1024);
+        if (chunk.length === 0) break;
+        out += decode(chunk);
+      }
+      await syscall('close', fd);
+      return out;
+    }
+
+    async function readLine(fd) {
+      let line = '';
+      while (true) {
+        const chunk = await syscall('read', fd, 1);
+        if (chunk.length === 0) break;
+        const ch = decode(chunk);
+        if (ch === '\n') break;
+        line += ch;
+      }
+      return line;
+    }
+
+    let tty;
+    try {
+      tty = await syscall('open', '/dev/tty0', 'r');
+    } catch {
+      await syscall('write', STDERR_FD, encode('login: /dev/tty0 not found\n'));
+      return 1;
+    }
+
+    await syscall('write', STDOUT_FD, encode('login: '));
+    await readLine(tty);
+    await syscall('write', STDOUT_FD, encode('password: '));
+    await readLine(tty);
+    await syscall('close', tty);
+
+    try {
+      const code = await readFile('/bin/bash');
+      let m;
+      try { m = JSON.parse(await readFile('/bin/bash.manifest.json')); } catch {}
+      await syscall('spawn', code, { syscalls: m ? m.syscalls : undefined });
+    } catch {
+      await syscall('write', STDERR_FD, encode('login: failed to launch shell\n'));
+      return 1;
+    }
+    return 0;
+  }
+`;
+
+export const LOGIN_MANIFEST = JSON.stringify({
+  name: 'login',
+  syscalls: ['open', 'read', 'write', 'close', 'spawn']
+});
+
+export const INIT_SOURCE = `
+  async (syscall, argv) => {
+    const STDERR_FD = 2;
+    const encode = (s) => new TextEncoder().encode(s);
+    const decode = (b) => new TextDecoder().decode(b);
+
+    async function readFile(path) {
+      const fd = await syscall('open', path, 'r');
+      let out = '';
+      while (true) {
+        const chunk = await syscall('read', fd, 1024);
+        if (chunk.length === 0) break;
+        out += decode(chunk);
+      }
+      await syscall('close', fd);
+      return out;
+    }
+
+    try {
+      const code = await readFile('/bin/login');
+      let m;
+      try { m = JSON.parse(await readFile('/bin/login.manifest.json')); } catch {}
+      await syscall('spawn', code, { syscalls: m ? m.syscalls : undefined });
+    } catch {
+      await syscall('write', STDERR_FD, encode('init: failed to launch login\n'));
+      return 1;
+    }
+    return 0;
+  }
+`;
+
+export const INIT_MANIFEST = JSON.stringify({
+  name: 'init',
+  syscalls: ['open', 'read', 'write', 'close', 'spawn']
+});
+
