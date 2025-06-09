@@ -349,6 +349,8 @@ export class Kernel {
           return 0;
         case 'ps':
           return this.syscall_ps();
+        case 'reboot':
+          return this.reboot();
         default:
           throw new Error(`Unknown syscall: ${call}`);
       }
@@ -617,5 +619,10 @@ export class Kernel {
   public stop(): void {
     persistKernelSnapshot(this.snapshot());
     this.running = false;
+  }
+
+  public reboot(): void {
+    this.stop();
+    eventBus.emit('system.reboot', {});
   }
 }

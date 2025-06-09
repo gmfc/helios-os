@@ -435,3 +435,15 @@ export const INIT_MANIFEST = JSON.stringify({
   syscalls: ['open', 'read', 'write', 'close', 'spawn']
 });
 
+export const REBOOT_SOURCE = `
+  async (syscall) => {
+    await syscall('reboot');
+    return 0;
+  }
+`;
+
+export const REBOOT_MANIFEST = JSON.stringify({
+  name: 'reboot',
+  syscalls: ['reboot']
+});
+
