@@ -16,6 +16,7 @@ import { NIC } from './net/nic';
 import { TCP } from './net/tcp';
 import { UDP } from './net/udp';
 import { BASH_SOURCE } from './fs/bin';
+import { startHttpd, startSshd, startPingService } from './services';
 
 type ProcessID = number;
 type FileDescriptor = number;
@@ -197,6 +198,16 @@ export class Kernel {
       (kernel.state.udp as any).listeners = new Map(snapshot.udp.listeners ?? []);
       (kernel.state.udp as any).sockets = new Map(snapshot.udp.sockets ?? []);
       (kernel.state.udp as any).nextSocket = snapshot.udp.nextSocket ?? 1;
+    }
+
+    for (const [name, svc] of kernel.state.services.entries()) {
+      if (name.startsWith('httpd')) {
+        startHttpd(kernel, { port: svc.port });
+      } else if (name.startsWith('sshd')) {
+        startSshd(kernel, { port: svc.port });
+      } else if (name.startsWith('pingd')) {
+        startPingService(kernel, { port: svc.port });
+      }
     }
 
     if (typeof window !== 'undefined') {
