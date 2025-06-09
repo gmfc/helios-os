@@ -8,6 +8,8 @@ import {
   createPersistHook,
   loadKernelSnapshot,
   persistKernelSnapshot,
+  saveNamedSnapshot,
+  loadNamedSnapshot,
 } from './fs/sqlite';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
@@ -386,6 +388,17 @@ export class Kernel {
         case 'save_snapshot':
           persistKernelSnapshot(this.snapshot());
           return 0;
+        case 'save_snapshot_named':
+          await saveNamedSnapshot(args[0], this.snapshot());
+          return 0;
+        case 'load_snapshot_named': {
+          const snap = await loadNamedSnapshot(args[0]);
+          if (!snap) return -1;
+          this.running = false;
+          persistKernelSnapshot(snap);
+          eventBus.emit('system.reboot', {});
+          return 0;
+        }
         case 'ps':
           return this.syscall_ps();
         case 'reboot':
