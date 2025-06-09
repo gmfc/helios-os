@@ -437,6 +437,24 @@ export class Kernel {
       if (parts.length < 3) {
         throw new Error(`EISDIR: illegal operation on a directory, open '${path}'`);
       }
+
+      const pid = parseInt(parts[1], 10);
+      const target = this.state.processes.get(pid);
+      if (!target) {
+        throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+      }
+
+      if (parts[2] === 'status' && parts.length === 3) {
+        // valid
+      } else if (parts[2] === 'fd' && parts.length === 4) {
+        const vfd = parseInt(parts[3], 10);
+        if (!target.fds.has(vfd)) {
+          throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+        }
+      } else {
+        throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+      }
+
       const fd = pcb.nextFd++;
       pcb.fds.set(fd, { path, position: 0, flags, virtual: true });
       return fd;
