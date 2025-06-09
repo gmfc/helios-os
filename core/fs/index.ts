@@ -18,6 +18,8 @@ import {
   PING_MANIFEST,
   DESKTOP_MANIFEST,
   PS_MANIFEST,
+  SLEEP_SOURCE,
+  SLEEP_MANIFEST,
   INIT_MANIFEST,
   LOGIN_MANIFEST,
   BASH_MANIFEST,
@@ -110,6 +112,8 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     this.createFile('/bin/desktop.manifest.json', DESKTOP_MANIFEST, 0o644);
     this.createFile('/bin/ps', PS_SOURCE, 0o755);
     this.createFile('/bin/ps.manifest.json', PS_MANIFEST, 0o644);
+    this.createFile('/bin/sleep', SLEEP_SOURCE, 0o755);
+    this.createFile('/bin/sleep.manifest.json', SLEEP_MANIFEST, 0o644);
 
     this.createDirectory('/sbin', 0o755);
     this.createFile('/sbin/init', INIT_SOURCE, 0o755);

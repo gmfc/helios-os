@@ -78,3 +78,9 @@ the desktop resumes exactly where it left off. Calling
 `load_snapshot_named(name)` loads the requested snapshot, saves it as the active
 one and reboots automatically so the restored state becomes live.
 The `/sbin/snapshot` utility provides `snapshot save <name>` and `snapshot load <name>` for manual state management.
+
+### Job control
+
+The shell keeps a small job table. Commands ending with `&` are spawned in the
+background and immediately return to the prompt. Use `jobs` to list entries,
+`fg <id>` to wait on a job and `bg <id>` to resume a stopped one.

@@ -158,11 +158,14 @@ const App = () => {
             term.write('\r\n');
             const command = commandLine.trim();
             setCommandLine('');
-            
-            if (command) {
-                setIsBusy(true);
-                await kernelRef.current?.spawn(command);
-                setIsBusy(false);
+
+            const isBg = command.endsWith('&');
+            const cmd = isBg ? command.slice(0, -1).trim() : command;
+
+            if (cmd) {
+                if (!isBg) setIsBusy(true);
+                await kernelRef.current?.spawn(cmd);
+                if (!isBg) setIsBusy(false);
             }
             term.write('$ ');
 
