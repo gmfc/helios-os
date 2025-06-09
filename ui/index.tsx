@@ -8,6 +8,7 @@ import '@xterm/xterm/css/xterm.css';
 
 import { Kernel } from '../core/kernel';
 import { WindowManager, WindowManagerHandles } from './components/WindowManager';
+import LoginPrompt from './components/LoginPrompt';
 import { eventBus, type DrawPayload } from '../core/eventBus';
 
 // A basic theme for the terminal
@@ -26,6 +27,8 @@ const App = () => {
     const [commandLine, setCommandLine] = useState('');
     const [isBusy, setIsBusy] = useState(false);
     const [shellReady, setShellReady] = useState(false);
+    const [loggedIn, setLoggedIn] = useState(false);
+    const [loginError, setLoginError] = useState('');
 
     useEffect(() => {
         Kernel.create().then(kernel => {
@@ -39,7 +42,7 @@ const App = () => {
     }, []);
 
     useEffect(() => {
-        if (!shellReady) return;
+        if (!shellReady || !loggedIn) return;
         let cleanup: (() => void) | undefined;
 
         const term = xtermRef.current?.terminal;
@@ -79,7 +82,7 @@ const App = () => {
         return () => {
             cleanup?.();
         };
-    }, [shellReady]);
+    }, [shellReady, loggedIn]);
 
     useEffect(() => {
         const handler = (payload: DrawPayload) => {
@@ -109,9 +112,18 @@ const App = () => {
         fitAddonRef.current?.fit();
     }, []);
 
+    const handleLogin = useCallback((user: string, pass: string) => {
+        if (user === 'user' && pass === 'password') {
+            setLoggedIn(true);
+            setLoginError('');
+        } else {
+            setLoginError('Invalid credentials');
+        }
+    }, []);
+
     const onTerminalData = async (data: string) => {
         const term = xtermRef.current?.terminal;
-        if (!term || isBusy || !shellReady) return;
+        if (!term || isBusy || !shellReady || !loggedIn) return;
 
         const code = data.charCodeAt(0);
         if (code === 13) { // Enter
@@ -139,14 +151,16 @@ const App = () => {
 
     return (
         <WindowManager ref={windowManagerRef} onResize={handleResize}>
-            {shellReady ? (
+            {!shellReady ? (
+                <div style={{ color: '#d4d4d4', padding: '10px' }}>Booting...</div>
+            ) : !loggedIn ? (
+                <LoginPrompt onLogin={handleLogin} error={loginError} />
+            ) : (
                 <XTerm
                     ref={xtermRef}
                     options={{ theme, cursorBlink: true, convertEol: true }}
                     onData={onTerminalData}
                 />
-            ) : (
-                <div style={{ color: '#d4d4d4', padding: '10px' }}>Booting...</div>
             )}
         </WindowManager>
     );
