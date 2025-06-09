@@ -173,6 +173,9 @@ export class Kernel {
         if (value.dataType === 'Map') {
           return new Map(value.value);
         }
+        if (value.dataType === 'Set') {
+          return new Set<string>(value.value);
+        }
         if (value.dataType === 'Uint8Array') {
           if (typeof Buffer !== 'undefined') {
             return new Uint8Array(Buffer.from(value.value, 'base64'));
@@ -596,6 +599,9 @@ export class Kernel {
     const replacer = (_: string, value: any) => {
       if (value instanceof Map) {
         return { dataType: 'Map', value: Array.from(value.entries()) };
+      }
+      if (value instanceof Set) {
+        return { dataType: 'Set', value: Array.from(value) };
       }
       if (value instanceof Uint8Array) {
         const str = typeof Buffer !== 'undefined'

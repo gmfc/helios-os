@@ -37,6 +37,18 @@ async function run() {
   const list = kernel['syscall_ps']();
   assert(Array.isArray(list) && list.length > 0, 'ps should return processes');
   console.log('Kernel ps syscall test passed.');
+
+  // regression: syscall permissions survive snapshot/restore
+  const permKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  const pid2 = await permKernel['syscall_spawn']('dummy', { syscalls: ['ps'] });
+  const snapKernel = permKernel.snapshot();
+  const restored: any = await (Kernel as any).restore(snapKernel);
+  const pcb2 = restored['state'].processes.get(pid2);
+  assert(
+    pcb2.allowedSyscalls instanceof Set && pcb2.allowedSyscalls.has('ps'),
+    'permissions should persist after restore'
+  );
+  console.log('Kernel syscall permissions restore test passed.');
 }
 
 run();
