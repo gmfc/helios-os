@@ -39,6 +39,26 @@ async function run() {
   assert(Array.isArray(list) && list.length > 0, 'ps should return processes');
   console.log('Kernel ps syscall test passed.');
 
+  // ps should report cpu/mem usage and tty information
+  const psKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  let runs = 0;
+  psKernel.runProcess = async (pcb: any) => {
+    pcb.exitCode = 0;
+    pcb.cpuMs += 5;
+    pcb.memBytes += 1024;
+    runs++;
+    if (runs >= 2) pcb.exited = true;
+  };
+  const psPid = await psKernel['syscall_spawn']('dummy', { tty: '/dev/tty1' });
+  const psPcb = psKernel['state'].processes.get(psPid);
+  await psKernel.runProcess(psPcb);
+  await psKernel.runProcess(psPcb);
+  const psList = psKernel['syscall_ps']();
+  const proc = psList.find(p => p.pid === psPid);
+  assert(proc && proc.cpuMs === 10 && proc.memBytes === 2048 && proc.tty === '/dev/tty1',
+    'ps should return accumulated cpu/mem and tty');
+  console.log('Kernel ps resource accumulation test passed.');
+
   // regression: syscall permissions survive snapshot/restore
   const permKernel: any = new (Kernel as any)(new InMemoryFileSystem());
   const pid2 = await permKernel['syscall_spawn']('dummy', { syscalls: ['ps'] });
