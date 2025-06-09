@@ -12,6 +12,7 @@ export * from './ps';
 export * from './init';
 export * from './login';
 export * from './bash';
+export * from './snapshot';
 
 import {
   NANO_SOURCE,
@@ -26,6 +27,7 @@ import {
   INIT_SOURCE,
   LOGIN_SOURCE,
   BASH_SOURCE,
+  SNAPSHOT_SOURCE,
 } from '../core/fs/bin';
 
 export const BUNDLED_APPS = new Map<string, string>([
@@ -41,4 +43,6 @@ export const BUNDLED_APPS = new Map<string, string>([
   ['init', INIT_SOURCE],
   ['login', LOGIN_SOURCE],
   ['bash', BASH_SOURCE],
+  ['snapshot', SNAPSHOT_SOURCE],
 ]);
+
