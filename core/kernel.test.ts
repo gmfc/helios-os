@@ -49,6 +49,20 @@ async function run() {
     'permissions should persist after restore'
   );
   console.log('Kernel syscall permissions restore test passed.');
+
+  // open descriptors survive snapshot/restore
+  const fdKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  fdKernel['state'].fs.createDirectory('/tmp', 0o755);
+  fdKernel['state'].fs.createFile('/tmp/foo.txt', 'hello', 0o644);
+  const pid3 = fdKernel['createProcess']();
+  const pcb3 = fdKernel['state'].processes.get(pid3);
+  const fd = fdKernel['syscall_open'](pcb3, '/tmp/foo.txt', 'r');
+  const snapFd = fdKernel.snapshot();
+  const restoredFd: any = await (Kernel as any).restore(snapFd);
+  const pcbRestored = restoredFd['state'].processes.get(pid3);
+  const data = restoredFd['syscall_read'](pcbRestored, fd, 5);
+  assert(new TextDecoder().decode(data) === 'hello', 'open descriptor restored');
+  console.log('Kernel fd restore test passed.');
 }
 
 run();
