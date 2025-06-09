@@ -1,4 +1,5 @@
 import assert from 'assert';
+import { createHash } from 'node:crypto';
 import { Kernel } from './kernel';
 import { InMemoryFileSystem } from './fs';
 
@@ -41,8 +42,8 @@ async function run() {
   // regression: syscall permissions survive snapshot/restore
   const permKernel: any = new (Kernel as any)(new InMemoryFileSystem());
   const pid2 = await permKernel['syscall_spawn']('dummy', { syscalls: ['ps'] });
-  const snapKernel = permKernel.snapshot();
-  const restored: any = await (Kernel as any).restore(snapKernel);
+  const permSnap = permKernel.snapshot();
+  const restored: any = await (Kernel as any).restore(permSnap);
   const pcb2 = restored['state'].processes.get(pid2);
   assert(
     pcb2.allowedSyscalls instanceof Set && pcb2.allowedSyscalls.has('ps'),
@@ -63,6 +64,27 @@ async function run() {
   const data = restoredFd['syscall_read'](pcbRestored, fd, 5);
   assert(new TextDecoder().decode(data) === 'hello', 'open descriptor restored');
   console.log('Kernel fd restore test passed.');
+
+  // snapshot save/load preserves fs hash and window list
+  const snapKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  snapKernel['state'].fs.createDirectory('/snap', 0o755);
+  snapKernel['state'].fs.createFile('/snap/test.txt', 'data', 0o644);
+  snapKernel['syscall_draw'](new TextEncoder().encode('<p>hi</p>'), { title: 't' });
+  const hash1 = createHash('sha256')
+    .update(JSON.stringify(snapKernel['state'].fs.getSnapshot()))
+    .digest('hex');
+  const snapshot = snapKernel.snapshot();
+  const restoredSnap: any = await (Kernel as any).restore(snapshot);
+  const hash2 = createHash('sha256')
+    .update(JSON.stringify(restoredSnap['state'].fs.getSnapshot()))
+    .digest('hex');
+  assert.strictEqual(hash1, hash2, 'filesystem hash should match after restore');
+  assert.deepStrictEqual(
+    restoredSnap['state'].windows,
+    snapKernel['state'].windows,
+    'windows should restore identically'
+  );
+  console.log('Kernel snapshot save/load test passed.');
 }
 
 run();
