@@ -40,3 +40,10 @@ User programs interact with the kernel through an asynchronous syscall dispatche
 | `unmount(path)` | unmount a disk image |
 | `snapshot()` | return the full machine state |
 | `save_snapshot()` | persist state to disk |
+
+### Reboot and restore
+
+The `/sbin/reboot` command calls `kernel.reboot()`. This persists the current
+snapshot via `save_snapshot()` and stops the scheduler. On the next boot
+`Kernel.create()` loads that snapshot, recreating services and open windows so
+the desktop resumes exactly where it left off.
