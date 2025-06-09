@@ -52,3 +52,16 @@ function testDirOps() {
 
 testDirOps();
 
+function testFileDataPersistence() {
+    const fs = new InMemoryFileSystem();
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+    fs.createFile('/bin/data.bin', bytes, 0o644);
+    const snap = fs.getSnapshot();
+    const fs2 = new InMemoryFileSystem(snap);
+    const read = fs2.readFile('/bin/data.bin');
+    assert(read.length === bytes.length && read.every((b, i) => b === bytes[i]), 'binary data should persist');
+    console.log('File data persistence test passed.');
+}
+
+testFileDataPersistence();
+

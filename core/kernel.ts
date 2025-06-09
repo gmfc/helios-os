@@ -168,12 +168,30 @@ export class Kernel {
   }
 
   public static async restore(snapshot: Snapshot): Promise<Kernel> {
-    const fs = new InMemoryFileSystem(snapshot.fs ?? undefined, createPersistHook());
-    const kernel = new Kernel(fs);
+    const reviver = (_: string, value: any) => {
+      if (value && typeof value === 'object') {
+        if (value.dataType === 'Map') {
+          return new Map(value.value);
+        }
+        if (value.dataType === 'Uint8Array') {
+          if (typeof Buffer !== 'undefined') {
+            return new Uint8Array(Buffer.from(value.value, 'base64'));
+          }
+          const bin = atob(value.value);
+          const arr = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          return arr;
+        }
+      }
+      return value;
+    };
+    const parsed: Snapshot = JSON.parse(JSON.stringify(snapshot), reviver);
 
-    kernel.state.processes = new Map(snapshot.processes ?? []);
-    kernel.state.nextPid = snapshot.nextPid ?? 1;
-    kernel.state.windows = snapshot.windows ?? [];
+    const fs = new InMemoryFileSystem(parsed.fs ?? undefined, createPersistHook());
+    const kernel = new Kernel(fs);
+    kernel.state.processes = new Map(parsed.processes ?? []);
+    kernel.state.nextPid = parsed.nextPid ?? 1;
+    kernel.state.windows = parsed.windows ?? [];
     for (const [id, win] of kernel.state.windows.entries()) {
         eventBus.emit('desktop.createWindow', {
             id,
@@ -181,23 +199,23 @@ export class Kernel {
             opts: win.opts,
         });
     }
-    kernel.state.services = new Map(snapshot.services ?? []);
-    kernel.initPid = snapshot.initPid ?? null;
+    kernel.state.services = new Map(parsed.services ?? []);
+    kernel.initPid = parsed.initPid ?? null;
 
-    kernel.pendingNics = snapshot.nics ? Array.from(snapshot.nics) : [];
+    kernel.pendingNics = parsed.nics ? Array.from(parsed.nics) : [];
 
     kernel.state.tcp = new TCP();
-    if (snapshot.tcp) {
-      (kernel.state.tcp as any).listeners = new Map(snapshot.tcp.listeners ?? []);
-      (kernel.state.tcp as any).sockets = new Map(snapshot.tcp.sockets ?? []);
-      (kernel.state.tcp as any).nextSocket = snapshot.tcp.nextSocket ?? 1;
+    if (parsed.tcp) {
+      (kernel.state.tcp as any).listeners = new Map(parsed.tcp.listeners ?? []);
+      (kernel.state.tcp as any).sockets = new Map(parsed.tcp.sockets ?? []);
+      (kernel.state.tcp as any).nextSocket = parsed.tcp.nextSocket ?? 1;
     }
 
     kernel.state.udp = new UDP();
-    if (snapshot.udp) {
-      (kernel.state.udp as any).listeners = new Map(snapshot.udp.listeners ?? []);
-      (kernel.state.udp as any).sockets = new Map(snapshot.udp.sockets ?? []);
-      (kernel.state.udp as any).nextSocket = snapshot.udp.nextSocket ?? 1;
+    if (parsed.udp) {
+      (kernel.state.udp as any).listeners = new Map(parsed.udp.listeners ?? []);
+      (kernel.state.udp as any).sockets = new Map(parsed.udp.sockets ?? []);
+      (kernel.state.udp as any).nextSocket = parsed.udp.nextSocket ?? 1;
     }
 
     for (const [name, svc] of kernel.state.services.entries()) {
@@ -578,6 +596,12 @@ export class Kernel {
     const replacer = (_: string, value: any) => {
       if (value instanceof Map) {
         return { dataType: 'Map', value: Array.from(value.entries()) };
+      }
+      if (value instanceof Uint8Array) {
+        const str = typeof Buffer !== 'undefined'
+          ? Buffer.from(value).toString('base64')
+          : btoa(String.fromCharCode(...Array.from(value)));
+        return { dataType: 'Uint8Array', value: str };
       }
       return value;
     };
