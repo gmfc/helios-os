@@ -54,7 +54,7 @@ async function run() {
   await psKernel.runProcess(psPcb);
   await psKernel.runProcess(psPcb);
   const psList = psKernel['syscall_ps']();
-  const proc = psList.find(p => p.pid === psPid);
+  const proc = psList.find((p: any) => p.pid === psPid);
   assert(proc && proc.cpuMs === 10 && proc.memBytes === 2048 && proc.tty === '/dev/tty1',
     'ps should return accumulated cpu/mem and tty');
   console.log('Kernel ps resource accumulation test passed.');
@@ -84,6 +84,31 @@ async function run() {
   const data = await restoredFd['syscall_read'](pcbRestored, fd, 5);
   assert(new TextDecoder().decode(data) === 'hello', 'open descriptor restored');
   console.log('Kernel fd restore test passed.');
+
+  // scheduler timeslicing requeues running process
+  globalThis.window = {} as any;
+  globalThis.window.crypto = {
+    getRandomValues: (arr: Uint32Array) => require('crypto').randomFillSync(arr)
+  };
+  const { mockIPC, clearMocks } = await import('@tauri-apps/api/mocks');
+  let slices = 0;
+  mockIPC((_cmd, _args) => {
+    slices++;
+    if (slices < 3) {
+      return { running: true, cpu_ms: 1, mem_bytes: 0 };
+    }
+    return { running: false, exit_code: 0, cpu_ms: 1, mem_bytes: 0 };
+  });
+  const schedKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  await schedKernel['syscall_spawn']('dummy', { quotaMs: 1 });
+  const schedStart = schedKernel.start();
+  setTimeout(() => schedKernel.stop(), 10);
+  await schedStart;
+  clearMocks();
+  // @ts-ignore
+  delete globalThis.window;
+  assert(slices >= 3, 'process should be requeued multiple times');
+  console.log('Kernel scheduler timeslice test passed.');
 
   // snapshot save/load preserves fs hash and window list
   const snapKernel: any = new (Kernel as any)(new InMemoryFileSystem());

@@ -36,6 +36,7 @@ interface FileDescriptorEntry {
  */
 interface ProcessControlBlock {
   pid: ProcessID;
+  isolateId: number;
   uid: number;
   gid: number;
   quotaMs: number;
@@ -328,6 +329,7 @@ export class Kernel {
     const pid = this.state.nextPid++;
     const pcb: ProcessControlBlock = {
         pid,
+        isolateId: pid,
         uid: 1000,
         gid: 1000,
         quotaMs: 10,
@@ -539,6 +541,7 @@ export class Kernel {
     if (opts.quotaMem !== undefined) pcb.quotaMem = opts.quotaMem;
     pcb.cpuMs = 0;
     pcb.memBytes = 0;
+    pcb.isolateId = pid;
     if (opts.tty !== undefined) pcb.tty = opts.tty;
     if (opts.syscalls) pcb.allowedSyscalls = new Set(opts.syscalls);
     pcb.code = code;
@@ -698,38 +701,45 @@ export class Kernel {
     dispatcherMap.set(pcb.pid, syscall);
     const wrapped = `const main = ${pcb.code}; main(syscall, ${JSON.stringify(pcb.argv ?? [])});`;
     try {
-        const result: any = await invoke('run_isolate', {
+        const result: any = await invoke('run_isolate_slice', {
+            pid: pcb.isolateId,
             code: wrapped,
-            quotaMs: pcb.quotaMs,
+            sliceMs: pcb.quotaMs,
             quotaMem: pcb.quotaMem,
-            pid: pcb.pid,
         });
         if (result) {
-            pcb.exitCode = result.exit_code ?? 0;
             pcb.cpuMs += result.cpu_ms ?? 0;
             pcb.memBytes += result.mem_bytes ?? 0;
+            if (!result.running) {
+                pcb.exitCode = result.exit_code ?? 0;
+                pcb.exited = true;
+            }
         } else {
             pcb.exitCode = 0;
+            pcb.exited = true;
         }
     } catch (e) {
       console.error('Process', pcb.pid, 'crashed or exceeded quota:', e);
       pcb.exitCode = 1;
+      pcb.exited = true;
     }
     dispatcherMap.delete(pcb.pid);
-    pcb.exited = true;
   }
 
   public async start(): Promise<void> {
     this.running = true;
     while (this.running) {
-      const pcb = this.readyQueue.shift();
-      if (!pcb) {
+      const queue = this.readyQueue.slice();
+      this.readyQueue = [];
+      if (queue.length === 0) {
         await new Promise(r => setTimeout(r, 1));
         continue;
       }
-      await this.runProcess(pcb);
-      if (!pcb.exited) {
-        this.readyQueue.push(pcb);
+      for (const pcb of queue) {
+        await this.runProcess(pcb);
+        if (!pcb.exited) {
+          this.readyQueue.push(pcb);
+        }
       }
     }
   }

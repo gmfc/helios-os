@@ -12,7 +12,12 @@ function testTcp() {
     const sock = tcp.connect('127.0.0.1', 8080);
     const payload = new Uint8Array([1, 2, 3]);
     tcp.send(sock, payload);
-    assert(received && received.length === 3 && received[0] === 1, 'TCP handler should receive data');
+    assert(
+        received &&
+        (received as Uint8Array).length === 3 &&
+        (received as Uint8Array)[0] === 1,
+        'TCP handler should receive data'
+    );
     console.log('TCP listen/connect test passed.');
 }
 

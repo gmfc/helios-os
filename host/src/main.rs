@@ -219,6 +219,72 @@ async fn run_isolate(
     }
 }
 
+#[tauri::command]
+async fn run_isolate_slice(
+    app: tauri::AppHandle,
+    pid: u32,
+    code: Option<String>,
+    slice_ms: u64,
+    quota_mem: usize,
+) -> Result<Value, String> {
+    init_v8();
+    let fut = tokio::task::spawn_blocking(move || {
+        let start = Instant::now();
+        let mut isolate = v8::Isolate::new(v8::CreateParams::default().heap_limits(0, quota_mem));
+        let handle_scope = &mut v8::HandleScope::new(&mut isolate);
+        let context = v8::Context::new(handle_scope, Default::default());
+        let scope = &mut v8::ContextScope::new(handle_scope, context);
+
+        let syscall_context = Box::new(SyscallContext {
+            app_handle: app.clone(),
+            pid,
+        });
+        let context_ptr = Box::into_raw(syscall_context);
+        let external = v8::External::new(scope, context_ptr as *mut std::ffi::c_void);
+
+        let syscall_tmpl = v8::FunctionTemplate::builder(syscall_callback)
+            .data(external.into())
+            .build(scope);
+
+        let syscall_func = syscall_tmpl.get_function(scope).unwrap();
+        let global = context.global(scope);
+        let key = v8::String::new(scope, "syscall").unwrap();
+        global.set(scope, key.into(), syscall_func.into());
+
+        if let Some(src) = code {
+            let code_str = v8::String::new(scope, &src).ok_or("bad code")?;
+            let script = v8::Script::compile(scope, code_str, None).ok_or("compile")?;
+            let _ = script.run(scope); // ignore result on slice
+        }
+
+        unsafe {
+            let _ = Box::from_raw(context_ptr);
+        }
+
+        let mut stats = v8::HeapStatistics::default();
+        isolate.get_heap_statistics(&mut stats);
+        let mem_bytes = stats.used_heap_size();
+        let cpu_ms = start.elapsed().as_millis() as u64;
+        Ok::<(Option<i32>, u64, usize), String>((None, cpu_ms, mem_bytes))
+    });
+
+    match timeout(Duration::from_millis(slice_ms), fut).await {
+        Ok(Ok(Ok((exit, cpu_ms, mem_bytes)))) => Ok(serde_json::json!({
+            "exit_code": exit,
+            "cpu_ms": cpu_ms,
+            "mem_bytes": mem_bytes,
+            "running": false
+        })),
+        Ok(Ok(Err(e))) => Err(e),
+        Ok(Err(e)) => Err(e.to_string()),
+        Err(_) => Ok(serde_json::json!({
+            "running": true,
+            "cpu_ms": slice_ms,
+            "mem_bytes": quota_mem
+        })),
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -229,6 +295,7 @@ fn main() {
             save_named_snapshot,
             load_named_snapshot,
             run_isolate,
+            run_isolate_slice,
             syscall_response
         ])
         .run(tauri::generate_context!())
