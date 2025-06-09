@@ -173,6 +173,43 @@ async function run() {
     assert(e.message.includes('ENOENT'), 'ENOENT expected for missing fd');
   }
   console.log('Kernel /proc ENOENT tests passed.');
+
+  // kill syscall terminates a process
+  const killKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  const killPid = await killKernel['syscall_spawn']('dummy');
+  const killPcb = killKernel['state'].processes.get(killPid);
+  const killRes = killKernel['syscall_kill'](killPid, 9);
+  assert.strictEqual(killRes, 0, 'kill should return 0');
+  assert.strictEqual(killPcb.exited, true, 'process should be marked exited');
+  console.log('Kernel kill syscall test passed.');
+
+  // init process cannot be killed
+  const initKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  const initPid = await initKernel['syscall_spawn']('dummy');
+  initKernel['initPid'] = initPid;
+  const initRes = initKernel['syscall_kill'](initPid, 9);
+  assert.strictEqual(initRes, -1, 'killing init should fail');
+  const initPcb = initKernel['state'].processes.get(initPid);
+  assert.strictEqual(initPcb.exited, false, 'init should remain running');
+  console.log('Kernel init kill protection test passed.');
+
+  // memory quota enforcement
+  globalThis.window = {} as any;
+  globalThis.window.crypto = {
+    getRandomValues: (arr: Uint32Array) => require('crypto').randomFillSync(arr)
+  };
+  const { mockIPC: mockQuota, clearMocks: clearQuota } = await import('@tauri-apps/api/mocks');
+  mockQuota(() => ({ running: true, cpu_ms: 1, mem_bytes: 2048 }));
+  const quotaKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  const quotaPid = await quotaKernel['syscall_spawn']('dummy', { quotaMs: 1 });
+  const quotaPcb = quotaKernel['state'].processes.get(quotaPid);
+  quotaKernel['syscall_set_quota'](quotaPcb, undefined, 1024);
+  await quotaKernel['runProcess'](quotaPcb);
+  clearQuota();
+  // @ts-ignore
+  delete globalThis.window;
+  assert.strictEqual(quotaPcb.exited, true, 'process should exit when exceeding memory quota');
+  console.log('Kernel memory quota enforcement test passed.');
 }
 
 run();
