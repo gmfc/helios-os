@@ -459,6 +459,8 @@ export class Kernel {
           return await this.syscall_mount(args[0], args[1]);
         case 'unmount':
           return await this.syscall_unmount(args[0]);
+        case 'kill':
+          return this.syscall_kill(args[0], args[1]);
         case 'snapshot':
           return this.snapshot();
         case 'save_snapshot':
@@ -621,6 +623,22 @@ export class Kernel {
       eventBus.emit('boot.shellReady', { pid });
     }
     return pid;
+  }
+
+  private syscall_kill(pid: number, sig?: number): number {
+      const pcb = this.state.processes.get(pid);
+      if (!pcb || pid === this.initPid) {
+          return -1;
+      }
+      pcb.exited = true;
+      pcb.exitCode = sig ?? 9;
+      this.readyQueue = this.readyQueue.filter(p => p.pid !== pid);
+      for (const [id, job] of this.jobs.entries()) {
+          if (job.pids.includes(pid)) {
+              this.updateJobStatus(id, 'Killed');
+          }
+      }
+      return 0;
   }
 
   private syscall_listen(port: number, proto: string, cb: ServiceHandler): number {
