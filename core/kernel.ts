@@ -352,13 +352,13 @@ export class Kernel {
 
       switch (call) {
         case 'open':
-          return this.syscall_open(pcb, args[0], args[1]);
+          return await this.syscall_open(pcb, args[0], args[1]);
         case 'read':
-          return this.syscall_read(pcb, args[0], args[1]);
+          return await this.syscall_read(pcb, args[0], args[1]);
         case 'write':
-          return this.syscall_write(pcb, args[0], args[1]);
+          return await this.syscall_write(pcb, args[0], args[1]);
         case 'close':
-          return this.syscall_close(pcb, args[0]);
+          return await this.syscall_close(pcb, args[0]);
         case 'spawn':
           return this.syscall_spawn(args[0], args[1]);
         case 'listen':
@@ -372,17 +372,17 @@ export class Kernel {
         case 'draw':
           return this.syscall_draw(args[0], args[1]);
         case 'mkdir':
-          return this.syscall_mkdir(args[0], args[1]);
+          return await this.syscall_mkdir(args[0], args[1]);
         case 'readdir':
-          return this.syscall_readdir(args[0]);
+          return await this.syscall_readdir(args[0]);
         case 'unlink':
-          return this.syscall_unlink(args[0]);
+          return await this.syscall_unlink(args[0]);
         case 'rename':
-          return this.syscall_rename(args[0], args[1]);
+          return await this.syscall_rename(args[0], args[1]);
         case 'mount':
-          return this.syscall_mount(args[0], args[1]);
+          return await this.syscall_mount(args[0], args[1]);
         case 'unmount':
-          return this.syscall_unmount(args[0]);
+          return await this.syscall_unmount(args[0]);
         case 'snapshot':
           return this.snapshot();
         case 'save_snapshot':
@@ -411,7 +411,7 @@ export class Kernel {
 
   // --- Syscall Implementations ---
 
-  private syscall_open(pcb: ProcessControlBlock, path: string, flags: string): FileDescriptor {
+  private async syscall_open(pcb: ProcessControlBlock, path: string, flags: string): Promise<FileDescriptor> {
     let node = this.state.fs.getNode(path);
     if (!node) {
       if (flags.includes('w') || flags.includes('a')) {
@@ -456,7 +456,7 @@ export class Kernel {
     return fd;
   }
 
-  private syscall_read(pcb: ProcessControlBlock, fd: FileDescriptor, length: number): Uint8Array {
+  private async syscall_read(pcb: ProcessControlBlock, fd: FileDescriptor, length: number): Promise<Uint8Array> {
     const entry = pcb.fds.get(fd);
     if (!entry) {
       throw new Error('EBADF: bad file descriptor');
@@ -472,7 +472,7 @@ export class Kernel {
     return data;
   }
 
-  private syscall_write(pcb: ProcessControlBlock, fd: FileDescriptor, data: Uint8Array): number {
+  private async syscall_write(pcb: ProcessControlBlock, fd: FileDescriptor, data: Uint8Array): Promise<number> {
     // For now, fd 1 (stdout) and 2 (stderr) write to the console.
     if (fd === 1 || fd === 2) {
       const text = new TextDecoder().decode(data);
@@ -509,7 +509,7 @@ export class Kernel {
     return data.length;
   }
 
-  private syscall_close(pcb: ProcessControlBlock, fd: FileDescriptor): number {
+  private async syscall_close(pcb: ProcessControlBlock, fd: FileDescriptor): Promise<number> {
     if (!pcb.fds.has(fd)) {
       return -1; // EBADF
     }
@@ -570,39 +570,39 @@ export class Kernel {
     return id;
   }
 
-  private syscall_mkdir(path: string, perms: number): number {
+  private async syscall_mkdir(path: string, perms: number): Promise<number> {
     const fsClone = this.state.fs.clone();
     fsClone.createDirectory(path, perms);
     this.state.fs = fsClone;
     return 0;
   }
 
-  private syscall_readdir(path: string): FileSystemNode[] {
+  private async syscall_readdir(path: string): Promise<FileSystemNode[]> {
     return this.state.fs.listDirectory(path);
   }
 
-  private syscall_unlink(path: string): number {
+  private async syscall_unlink(path: string): Promise<number> {
     const fsClone = this.state.fs.clone();
     fsClone.remove(path);
     this.state.fs = fsClone;
     return 0;
   }
 
-  private syscall_rename(oldPath: string, newPath: string): number {
+  private async syscall_rename(oldPath: string, newPath: string): Promise<number> {
     const fsClone = this.state.fs.clone();
     fsClone.rename(oldPath, newPath);
     this.state.fs = fsClone;
     return 0;
   }
 
-  private syscall_mount(image: FileSystemSnapshot, path: string): number {
+  private async syscall_mount(image: FileSystemSnapshot, path: string): Promise<number> {
     const fsClone = this.state.fs.clone();
     fsClone.mount(image, path);
     this.state.fs = fsClone;
     return 0;
   }
 
-  private syscall_unmount(path: string): number {
+  private async syscall_unmount(path: string): Promise<number> {
     const fsClone = this.state.fs.clone();
     fsClone.unmount(path);
     this.state.fs = fsClone;
