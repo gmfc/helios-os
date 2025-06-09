@@ -10,7 +10,13 @@ The kernel is implemented entirely in TypeScript under `core/`. It maintains the
 - `eventBus.ts` – Lightweight event emitter used for UI messages and service events.
 - `kernel.ts` – The main scheduler, process table and syscall implementations.
 
-Processes are executed inside V8 isolates spawned by the host. Each process has quotas for CPU time and memory. Syscalls are dispatched through a message bus to the kernel.
+Processes are executed inside V8 isolates spawned by the host. Each process has
+quotas for CPU time and memory. The host reports how many milliseconds of CPU
+time were used and the peak memory size after each run. Those numbers are
+accumulated into `pcb.cpuMs` and `pcb.memBytes` on the kernel side. When a
+program is spawned with a `tty` option the device name is stored in `pcb.tty` so
+utilities can show where a process is attached. Syscalls are dispatched through
+a message bus to the kernel.
 
 ### Snapshotting
 
@@ -44,6 +50,24 @@ User programs interact with the kernel through an asynchronous syscall dispatche
 | `save_snapshot()` | persist state to disk |
 | `save_snapshot_named(name)` | persist to named slot |
 | `load_snapshot_named(name)` | load slot & reboot |
+
+### Process accounting
+
+Each process keeps runtime counters:
+
+- `cpuMs` – total CPU milliseconds consumed.
+- `memBytes` – memory used while running.
+- `tty` – TTY device attached when spawned.
+
+The `ps` syscall exposes these values so userland can inspect resource usage.
+Example output from the bundled `ps` program:
+
+```
+PID %CPU %MEM TTY COMMAND
+1 32.5 18.9 tty0 /bin/bash
+2  1.0  0.3 tty0 ping 127.0.0.1
+3  0.0  0.1 ?   ps
+```
 
 ### Reboot and restore
 
