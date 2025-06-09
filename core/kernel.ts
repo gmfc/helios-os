@@ -117,6 +117,8 @@ export class Kernel {
   private initPid: ProcessID | null = null;
   private pendingNics: Array<any> | null = null;
   private networkingStarted = false;
+  private jobs: Map<number, { id: number; pids: number[]; command: string; status: string }> = new Map();
+  private nextJob = 1;
 
   private constructor(fs: InMemoryFileSystem) {
     this.state = {
@@ -416,6 +418,8 @@ export class Kernel {
         }
         case 'ps':
           return this.syscall_ps();
+        case 'jobs':
+          return this.syscall_jobs();
         case 'reboot':
           return this.reboot();
         default:
@@ -634,6 +638,33 @@ export class Kernel {
         list.push({ pid, argv: pcb.argv, exited: pcb.exited, cpuMs: pcb.cpuMs, memBytes: pcb.memBytes, tty: pcb.tty });
     }
     return list;
+  }
+
+  private syscall_jobs() {
+    return Array.from(this.jobs.values());
+  }
+
+  public registerJob(pids: number[], command: string): number {
+    const id = this.nextJob++;
+    const jobs = new Map(this.jobs);
+    const entry = { id, pids, command, status: 'Running' };
+    jobs.set(id, entry);
+    this.jobs = jobs;
+    return id;
+  }
+
+  public removeJob(id: number): void {
+    const jobs = new Map(this.jobs);
+    jobs.delete(id);
+    this.jobs = jobs;
+  }
+
+  public updateJobStatus(id: number, status: string): void {
+    const job = this.jobs.get(id);
+    if (!job) return;
+    const jobs = new Map(this.jobs);
+    jobs.set(id, { ...job, status });
+    this.jobs = jobs;
   }
 
   public snapshot(): Snapshot {

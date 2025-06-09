@@ -410,9 +410,15 @@ export const BASH_SOURCE = `
       if (line === 'exit') break;
 
       if (line === 'jobs') {
-        for (const j of jobs) {
+        let list;
+        try {
+          list = await syscall('jobs');
+        } catch {
+          list = jobs;
+        }
+        for (const j of list) {
           await syscall('write', STDOUT_FD,
-            encode('[' + j.id + '] ' + j.state + ' ' + j.command + '\n'));
+            encode('[' + j.id + '] ' + (j.status || j.state) + ' ' + j.command + '\n'));
         }
         continue;
       }
@@ -462,7 +468,7 @@ export const BASH_SOURCE = `
 
 export const BASH_MANIFEST = JSON.stringify({
   name: 'bash',
-  syscalls: ['open', 'read', 'write', 'close', 'spawn', 'ps']
+  syscalls: ['open', 'read', 'write', 'close', 'spawn', 'ps', 'jobs']
 });
 
 export const LOGIN_SOURCE = `
