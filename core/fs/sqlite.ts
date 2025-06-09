@@ -41,3 +41,23 @@ export async function persistKernelSnapshot(snapshot: any) {
     // ignore
   }
 }
+
+export async function saveNamedSnapshot(name: string, snapshot: any) {
+    try {
+        await invoke('save_named_snapshot', {
+            name,
+            json: JSON.stringify(snapshot),
+        });
+    } catch {
+        // ignore
+    }
+}
+
+export async function loadNamedSnapshot(name: string): Promise<any | null> {
+    try {
+        const result = await invoke<any>('load_named_snapshot', { name });
+        return result as any;
+    } catch {
+        return null;
+    }
+}
