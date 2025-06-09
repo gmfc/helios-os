@@ -25,6 +25,7 @@ import {
   SNAPSHOT_MANIFEST,
 } from './bin';
 import { createPersistHook } from './sqlite';
+import type { AsyncFileSystem } from './async';
 
 /**
  * Represents file permissions using a UNIX-like octal number.
@@ -59,7 +60,7 @@ export type Mount = {
 
 export type PersistHook = (snapshot: FileSystemSnapshot) => void;
 
-export class InMemoryFileSystem {
+export class InMemoryFileSystem implements AsyncFileSystem {
   private root: FileSystemNode;
   private nodes: Map<string, FileSystemNode>;
   private mounts: Map<string, Mount>;
@@ -268,7 +269,7 @@ export class InMemoryFileSystem {
     return fs;
   }
 
-  public mount(image: FileSystemSnapshot, path: string): void {
+  public mount(image: FileSystemSnapshot, path: string): Promise<void> {
     const snap = this.deserialize(image);
     let mountPoint = this.nodes.get(path);
     let createdMount = false;
@@ -310,9 +311,10 @@ export class InMemoryFileSystem {
 
     this.mounts.set(path, { image, path, createdMountPoint: createdMount });
     this.persist();
+    return Promise.resolve();
   }
 
-  public unmount(path: string): void {
+  public unmount(path: string): Promise<void> {
     const mount = this.mounts.get(path);
     if (!mount) {
       throw new Error(`EINVAL: not a mount point, unmount '${path}'`);
@@ -344,6 +346,7 @@ export class InMemoryFileSystem {
 
     this.mounts.delete(path);
     this.persist();
+    return Promise.resolve();
   }
 
   /**
@@ -383,7 +386,7 @@ export class InMemoryFileSystem {
   /**
    * Rename a file or directory.
    */
-  public rename(oldPath: string, newPath: string): void {
+  public rename(oldPath: string, newPath: string): Promise<void> {
     const node = this.nodes.get(oldPath);
     if (!node) {
       throw new Error(`ENOENT: no such file or directory, rename '${oldPath}'`);
@@ -414,6 +417,42 @@ export class InMemoryFileSystem {
 
     updatePaths(node, oldPath, newPath);
     this.persist();
+    return Promise.resolve();
+  }
+
+  public async open(path: string, flags: string = 'r'): Promise<FileSystemNode> {
+    let node = this.getNode(path);
+    if (!node) {
+      if (flags.includes('w') || flags.includes('a')) {
+        node = this.createFile(path, new Uint8Array(), 0o644);
+      } else {
+        throw new Error(`ENOENT: no such file or directory, open '${path}'`);
+      }
+    }
+    return Promise.resolve(node);
+  }
+
+  public async read(path: string): Promise<Uint8Array> {
+    return Promise.resolve(this.readFile(path));
+  }
+
+  public async write(path: string, data: Uint8Array): Promise<void> {
+    this.writeFile(path, data);
+    return Promise.resolve();
+  }
+
+  public async mkdir(path: string, perms: Permissions): Promise<void> {
+    this.createDirectory(path, perms);
+    return Promise.resolve();
+  }
+
+  public async readdir(path: string): Promise<FileSystemNode[]> {
+    return Promise.resolve(this.listDirectory(path));
+  }
+
+  public async unlink(path: string): Promise<void> {
+    this.remove(path);
+    return Promise.resolve();
   }
 
   private persist() {
@@ -481,4 +520,6 @@ export class InMemoryFileSystem {
   private getBaseName(path: string): string {
     return path.split('/').filter(p => p).pop() || '';
   }
-} 
+}
+
+export type FileSystem = InMemoryFileSystem & AsyncFileSystem;

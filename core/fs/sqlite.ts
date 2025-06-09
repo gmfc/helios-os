@@ -19,8 +19,8 @@ export async function persistSnapshot(snapshot: FileSystemSnapshot) {
 }
 
 export function createPersistHook(): PersistHook {
-  return (snapshot: FileSystemSnapshot) => {
-    persistSnapshot(snapshot);
+  return async (snapshot: FileSystemSnapshot) => {
+    await persistSnapshot(snapshot);
   };
 }
 

@@ -1,7 +1,7 @@
-import { InMemoryFileSystem, FileSystemNode } from './index';
+import { InMemoryFileSystem, FileSystemNode, FileSystem as DefaultFileSystem } from './index';
 import { createPersistHook } from './sqlite';
 
-export type FileSystem = InMemoryFileSystem;
+export type FileSystem = DefaultFileSystem;
 export type FileNode = FileSystemNode & { kind: 'file'; data: Uint8Array };
 
 export function fsLookup(fs: FileSystem, path: string): FileSystemNode | undefined {
