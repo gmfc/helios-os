@@ -24,7 +24,7 @@ import {
   REBOOT_MANIFEST,
   SNAPSHOT_MANIFEST,
 } from './bin';
-import { createPersistHook } from './sqlite';
+import { createPersistHook, loadSnapshot } from './sqlite';
 import type { AsyncFileSystem } from './async';
 
 /**
@@ -523,3 +523,9 @@ export class InMemoryFileSystem implements AsyncFileSystem {
 }
 
 export type FileSystem = InMemoryFileSystem & AsyncFileSystem;
+
+export async function loadFileSystem(): Promise<FileSystem | null> {
+  const snapshot = await loadSnapshot();
+  if (!snapshot) return null;
+  return new InMemoryFileSystem(snapshot, createPersistHook());
+}
