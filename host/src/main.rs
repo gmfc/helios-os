@@ -209,9 +209,9 @@ async fn run_isolate(
     });
     match timeout(Duration::from_millis(quota_ms), fut).await {
         Ok(Ok(Ok((exit, cpu_ms, mem_bytes)))) => Ok(serde_json::json!({
-            "exitCode": exit,
-            "cpuMs": cpu_ms,
-            "memBytes": mem_bytes
+            "exit_code": exit,
+            "cpu_ms": cpu_ms,
+            "mem_bytes": mem_bytes
         })),
         Ok(Ok(Err(e))) => Err(e),
         Ok(Err(e)) => Err(e.to_string()),

@@ -705,9 +705,9 @@ export class Kernel {
             pid: pcb.pid,
         });
         if (result) {
-            pcb.exitCode = result.exitCode ?? 0;
-            pcb.cpuMs += result.cpuMs ?? 0;
-            pcb.memBytes += result.memBytes ?? 0;
+            pcb.exitCode = result.exit_code ?? 0;
+            pcb.cpuMs += result.cpu_ms ?? 0;
+            pcb.memBytes += result.mem_bytes ?? 0;
         } else {
             pcb.exitCode = 0;
         }
