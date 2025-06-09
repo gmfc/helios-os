@@ -59,6 +59,9 @@ interface PCB {
   uid: number;
   quotaMs: number;          // Host-CPU budget per tick
   quotaMem: number;         // Bytes hard cap
+  cpuMs: number;            // CPU time consumed
+  memBytes: number;         // Memory usage so far
+  tty?: string;             // Attached terminal device
   mailbox: Message[];
 }
 
@@ -80,6 +83,22 @@ interface NIC {
 ```
 
 *Store everything in a single immutable-updated object; snapshot = `JSON.stringify(root)`.*
+
+#### Process accounting
+
+Each `PCB` also records runtime stats:
+
+- `cpuMs` and `memBytes` accumulate the CPU time and memory consumed by the isolate.
+- `tty` stores the TTY device name when provided to `spawn()`.
+
+The builtin `ps` command displays these metrics:
+
+```
+PID %CPU %MEM TTY COMMAND
+1 40.0 20.0 tty0 /bin/bash
+2  0.5  0.1 tty0 ping 127.0.0.1
+3  0.0  0.1 ?   ps
+```
 
 ### 3.2 Scheduler
 
