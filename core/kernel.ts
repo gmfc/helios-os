@@ -173,6 +173,13 @@ export class Kernel {
     kernel.state.processes = new Map(snapshot.processes ?? []);
     kernel.state.nextPid = snapshot.nextPid ?? 1;
     kernel.state.windows = snapshot.windows ?? [];
+    for (const [id, win] of kernel.state.windows.entries()) {
+        eventBus.emit('desktop.createWindow', {
+            id,
+            html: new TextDecoder().decode(win.html),
+            opts: win.opts,
+        });
+    }
     kernel.state.services = new Map(snapshot.services ?? []);
     kernel.initPid = snapshot.initPid ?? null;
 
