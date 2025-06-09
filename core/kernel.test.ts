@@ -110,6 +110,19 @@ async function run() {
   assert(slices >= 3, 'process should be requeued multiple times');
   console.log('Kernel scheduler timeslice test passed.');
 
+  // job table management
+  const jobKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  const jid = jobKernel.registerJob([123], 'sleep 1');
+  let jobList = jobKernel['syscall_jobs']();
+  assert.strictEqual(jobList.length, 1, 'job should register');
+  assert.strictEqual(jobList[0].id, jid, 'job id matches');
+  jobKernel.updateJobStatus(jid, 'Done');
+  jobList = jobKernel['syscall_jobs']();
+  assert.strictEqual(jobList[0].status, 'Done', 'status updates');
+  jobKernel.removeJob(jid);
+  assert.strictEqual(jobKernel['syscall_jobs']().length, 0, 'job removal');
+  console.log('Kernel job table test passed.');
+
   // snapshot save/load preserves fs hash and window list
   const snapKernel: any = new (Kernel as any)(new InMemoryFileSystem());
   snapKernel['state'].fs.createDirectory('/snap', 0o755);
