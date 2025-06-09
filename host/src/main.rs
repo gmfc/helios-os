@@ -8,6 +8,7 @@ use std::sync::{mpsc, Mutex, Once};
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
 use v8;
+use v8::Global;
 
 mod db;
 
@@ -93,6 +94,72 @@ static INIT: Once = Once::new();
 static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
 static RESPONSES: Lazy<Mutex<HashMap<usize, mpsc::Sender<Value>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
+static ISOLATES: Lazy<Mutex<HashMap<u32, JsRuntime>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+struct JsRuntime {
+    isolate: Option<v8::OwnedIsolate>,
+    context: Global<v8::Context>,
+    script: Option<Global<v8::Script>>,
+    context_ptr: *mut SyscallContext,
+}
+
+impl Drop for JsRuntime {
+    fn drop(&mut self) {
+        unsafe { let _ = Box::from_raw(self.context_ptr); }
+    }
+}
+
+impl JsRuntime {
+    fn new(app: tauri::AppHandle, pid: u32, code: String, quota_mem: usize) -> Result<Self, String> {
+        let mut isolate = v8::Isolate::new(v8::CreateParams::default().heap_limits(0, quota_mem));
+        let handle_scope = &mut v8::HandleScope::new(&mut isolate);
+        let context = v8::Context::new(handle_scope, Default::default());
+        let mut ctx_global = Global::new();
+        ctx_global.set(handle_scope, context);
+        let scope = &mut v8::ContextScope::new(handle_scope, context);
+
+        let syscall_context = Box::new(SyscallContext { app_handle: app, pid });
+        let context_ptr = Box::into_raw(syscall_context);
+        let external = v8::External::new(scope, context_ptr as *mut std::ffi::c_void);
+
+        let syscall_tmpl = v8::FunctionTemplate::builder(syscall_callback)
+            .data(external.into())
+            .build(scope);
+
+        let syscall_func = syscall_tmpl.get_function(scope).unwrap();
+        let global = context.global(scope);
+        let key = v8::String::new(scope, "syscall").unwrap();
+        global.set(scope, key.into(), syscall_func.into());
+
+        let code_str = v8::String::new(scope, &code).ok_or("bad code")?;
+        let script = v8::Script::compile(scope, code_str, None).ok_or("compile")?;
+        let mut script_global = Global::new();
+        script_global.set(scope, script);
+
+        Ok(Self { isolate: Some(isolate), context: ctx_global, script: Some(script_global), context_ptr })
+    }
+
+    fn execute(&mut self) -> Result<(Option<i32>, u64, usize), String> {
+        let mut isolate = self.isolate.take().unwrap();
+        let start = Instant::now();
+        let handle_scope = &mut v8::HandleScope::new(&mut isolate);
+        let ctx = v8::Local::new(handle_scope, &self.context);
+        let scope = &mut v8::ContextScope::new(handle_scope, ctx);
+
+        if let Some(script_global) = self.script.take() {
+            let script = v8::Local::new(scope, script_global);
+            let _ = script.run(scope);
+        }
+
+        let mut stats = v8::HeapStatistics::default();
+        isolate.get_heap_statistics(&mut stats);
+        let mem_bytes = stats.used_heap_size();
+        let cpu_ms = start.elapsed().as_millis() as u64;
+        self.isolate = Some(isolate);
+        Ok((None, cpu_ms, mem_bytes))
+    }
+}
 
 fn init_v8() {
     INIT.call_once(|| {
@@ -155,6 +222,12 @@ fn syscall_response(id: usize, result: Value) -> Result<(), String> {
     if let Some(tx) = RESPONSES.lock().unwrap().remove(&id) {
         tx.send(result).map_err(|_| "send failed".to_string())?;
     }
+    Ok(())
+}
+
+#[tauri::command]
+fn drop_isolate(pid: u32) -> Result<(), String> {
+    ISOLATES.lock().unwrap().remove(&pid);
     Ok(())
 }
 
@@ -229,43 +302,24 @@ async fn run_isolate_slice(
 ) -> Result<Value, String> {
     init_v8();
     let fut = tokio::task::spawn_blocking(move || {
-        let start = Instant::now();
-        let mut isolate = v8::Isolate::new(v8::CreateParams::default().heap_limits(0, quota_mem));
-        let handle_scope = &mut v8::HandleScope::new(&mut isolate);
-        let context = v8::Context::new(handle_scope, Default::default());
-        let scope = &mut v8::ContextScope::new(handle_scope, context);
+        let mut runtime = {
+            let mut map = ISOLATES.lock().unwrap();
+            if let Some(rt) = map.remove(&pid) {
+                rt
+            } else {
+                let src = code.ok_or("no code")?;
+                let rt = JsRuntime::new(app.clone(), pid, src, quota_mem)?;
+                rt
+            }
+        };
 
-        let syscall_context = Box::new(SyscallContext {
-            app_handle: app.clone(),
-            pid,
-        });
-        let context_ptr = Box::into_raw(syscall_context);
-        let external = v8::External::new(scope, context_ptr as *mut std::ffi::c_void);
+        let res = runtime.execute();
 
-        let syscall_tmpl = v8::FunctionTemplate::builder(syscall_callback)
-            .data(external.into())
-            .build(scope);
+        let mut map = ISOLATES.lock().unwrap();
+        map.insert(pid, runtime);
 
-        let syscall_func = syscall_tmpl.get_function(scope).unwrap();
-        let global = context.global(scope);
-        let key = v8::String::new(scope, "syscall").unwrap();
-        global.set(scope, key.into(), syscall_func.into());
-
-        if let Some(src) = code {
-            let code_str = v8::String::new(scope, &src).ok_or("bad code")?;
-            let script = v8::Script::compile(scope, code_str, None).ok_or("compile")?;
-            let _ = script.run(scope); // ignore result on slice
-        }
-
-        unsafe {
-            let _ = Box::from_raw(context_ptr);
-        }
-
-        let mut stats = v8::HeapStatistics::default();
-        isolate.get_heap_statistics(&mut stats);
-        let mem_bytes = stats.used_heap_size();
-        let cpu_ms = start.elapsed().as_millis() as u64;
-        Ok::<(Option<i32>, u64, usize), String>((None, cpu_ms, mem_bytes))
+        let (exit, cpu_ms, mem_bytes) = res?;
+        Ok::<(Option<i32>, u64, usize), String>((exit, cpu_ms, mem_bytes))
     });
 
     match timeout(Duration::from_millis(slice_ms), fut).await {
@@ -296,7 +350,8 @@ fn main() {
             load_named_snapshot,
             run_isolate,
             run_isolate_slice,
-            syscall_response
+            syscall_response,
+            drop_isolate
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
