@@ -1,5 +1,5 @@
 import assert from "assert";
-import { test } from "vitest";
+import { describe, it } from "vitest";
 import { InMemoryFileSystem } from "./index";
 
 function testSnapshot() {
@@ -38,9 +38,6 @@ function testUnmount() {
     console.log("Unmount test passed.");
 }
 
-test("snapshot load", testSnapshot);
-test("unmount", testUnmount);
-
 function testDirOps() {
     const fs = new InMemoryFileSystem();
     fs.createDirectory("/dir", 0o755);
@@ -57,8 +54,6 @@ function testDirOps() {
     console.log("Directory ops test passed.");
 }
 
-test("directory operations", testDirOps);
-
 function testFileDataPersistence() {
     const fs = new InMemoryFileSystem();
     const bytes = new Uint8Array([1, 2, 3, 4]);
@@ -73,4 +68,9 @@ function testFileDataPersistence() {
     console.log("File data persistence test passed.");
 }
 
-test("file data persistence", testFileDataPersistence);
+describe("InMemoryFileSystem", () => {
+    it("snapshot load", testSnapshot);
+    it("unmount", testUnmount);
+    it("directory operations", testDirOps);
+    it("file data persistence", testFileDataPersistence);
+});

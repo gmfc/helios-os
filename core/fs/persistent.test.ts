@@ -1,5 +1,5 @@
 import assert from "assert";
-import { test } from "vitest";
+import { describe, it, beforeEach, afterEach } from "vitest";
 import fs from "fs";
 import { PersistentFileSystem } from "./persistent";
 
@@ -257,8 +257,9 @@ function setup(dbPath: string) {
     };
 }
 
+let cleanup: () => void;
+
 async function run() {
-    const cleanup = setup("persistent_test.json");
     let fs1 = await PersistentFileSystem.load();
     await fs1.open("/persist.txt", "w");
     await fs1.write("/persist.txt", new TextEncoder().encode("hello"));
@@ -289,6 +290,16 @@ async function run() {
     cleanup();
 }
 
-test("persistent fs", async () => {
-    await run();
+describe("PersistentFileSystem", () => {
+    beforeEach(() => {
+        cleanup = setup("persistent_test.json");
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    it("persistent fs", async () => {
+        await run();
+    });
 });
