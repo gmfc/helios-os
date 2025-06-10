@@ -1,2 +1,1 @@
-export { PING_SOURCE } from '../../core/fs/bin';
-
+export { PING_SOURCE } from "../../core/fs/bin";

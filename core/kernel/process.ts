@@ -1,8 +1,8 @@
 // Process management utilities for the Helios-OS Kernel
 
-import { invoke } from '@tauri-apps/api/tauri';
-import type { SyscallDispatcher } from './syscalls';
-import type { Kernel } from './index';
+import { invoke } from "@tauri-apps/api/tauri";
+import type { SyscallDispatcher } from "./syscalls";
+import type { Kernel } from "./index";
 
 export type ProcessID = number;
 export type FileDescriptor = number;
@@ -70,8 +70,8 @@ export function cleanupProcess(this: Kernel, pid: ProcessID): void {
 }
 
 export function ensureProcRoot(this: Kernel): void {
-    if (!(this.state.fs as any).getNode('/proc')) {
-        (this.state.fs as any).createVirtualDirectory('/proc', 0o555);
+    if (!(this.state.fs as any).getNode("/proc")) {
+        (this.state.fs as any).createVirtualDirectory("/proc", 0o555);
     }
 }
 
@@ -81,7 +81,11 @@ export function registerProc(this: Kernel, pid: ProcessID): void {
         (this.state.fs as any).createVirtualDirectory(`/proc/${pid}`, 0o555);
     }
     if (!(this.state.fs as any).getNode(`/proc/${pid}/status`)) {
-        (this.state.fs as any).createVirtualFile(`/proc/${pid}/status`, () => this.procStatus(pid), 0o444);
+        (this.state.fs as any).createVirtualFile(
+            `/proc/${pid}/status`,
+            () => this.procStatus(pid),
+            0o444,
+        );
     }
     if (!(this.state.fs as any).getNode(`/proc/${pid}/fd`)) {
         (this.state.fs as any).createVirtualDirectory(`/proc/${pid}/fd`, 0o555);
@@ -92,10 +96,14 @@ export function registerProcFd(this: Kernel, pid: ProcessID, fd: number): void {
     const pcb = this.state.processes.get(pid);
     if (!pcb) return;
     if (!(this.state.fs as any).getNode(`/proc/${pid}/fd/${fd}`)) {
-        (this.state.fs as any).createVirtualFile(`/proc/${pid}/fd/${fd}`, () => {
-            const entry = pcb.fds.get(fd);
-            return new TextEncoder().encode(entry ? entry.path : '');
-        }, 0o444);
+        (this.state.fs as any).createVirtualFile(
+            `/proc/${pid}/fd/${fd}`,
+            () => {
+                const entry = pcb.fds.get(fd);
+                return new TextEncoder().encode(entry ? entry.path : "");
+            },
+            0o444,
+        );
     }
 }
 
@@ -110,15 +118,18 @@ export function procStatus(this: Kernel, pid: ProcessID): Uint8Array {
     const pcb = this.state.processes.get(pid);
     if (!pcb) return new Uint8Array();
     const enc = new TextEncoder();
-    const cmd = pcb.argv ? pcb.argv.join(' ') : '';
+    const cmd = pcb.argv ? pcb.argv.join(" ") : "";
     const out =
         `pid:\t${pid}\nuid:\t${pcb.uid}\n` +
         `cpuMs:\t${pcb.cpuMs}\nmemBytes:\t${pcb.memBytes}\n` +
-        `tty:\t${pcb.tty ?? ''}\ncmd:\t${cmd}\n`;
+        `tty:\t${pcb.tty ?? ""}\ncmd:\t${cmd}\n`;
     return enc.encode(out);
 }
 
-export async function runProcess(this: Kernel, pcb: ProcessControlBlock): Promise<void> {
+export async function runProcess(
+    this: Kernel,
+    pcb: ProcessControlBlock,
+): Promise<void> {
     if (!pcb.started && !pcb.code) return;
     const syscall = this.createSyscallDispatcher(pcb.pid);
     dispatcherMap.set(pcb.pid, syscall);
@@ -132,7 +143,7 @@ export async function runProcess(this: Kernel, pcb: ProcessControlBlock): Promis
         args.code = wrapped;
     }
     try {
-        const result: any = await invoke('run_isolate_slice', args);
+        const result: any = await invoke("run_isolate_slice", args);
         if (!pcb.started) {
             pcb.started = true;
             pcb.code = undefined;
@@ -141,7 +152,7 @@ export async function runProcess(this: Kernel, pcb: ProcessControlBlock): Promis
             pcb.cpuMs += result.cpu_ms ?? 0;
             pcb.memBytes += result.mem_bytes ?? 0;
             if (pcb.cpuMs > pcb.quotaMs_total || pcb.memBytes > pcb.quotaMem) {
-                console.warn('Process', pcb.pid, 'exceeded quota');
+                console.warn("Process", pcb.pid, "exceeded quota");
                 this.syscall_kill(pcb.pid, 9);
             } else if (!result.running) {
                 pcb.exitCode = result.exit_code ?? 0;
@@ -152,22 +163,26 @@ export async function runProcess(this: Kernel, pcb: ProcessControlBlock): Promis
             pcb.exited = true;
         }
     } catch (e) {
-        console.error('Process', pcb.pid, 'crashed or exceeded quota:', e);
+        console.error("Process", pcb.pid, "crashed or exceeded quota:", e);
         pcb.exitCode = 1;
         pcb.exited = true;
     }
     if (pcb.exited) {
         try {
-            await invoke('drop_isolate', { pid: pcb.isolateId });
+            await invoke("drop_isolate", { pid: pcb.isolateId });
         } catch {}
     }
     dispatcherMap.delete(pcb.pid);
 }
 
-export function registerJob(this: Kernel, pids: number[], command: string): number {
+export function registerJob(
+    this: Kernel,
+    pids: number[],
+    command: string,
+): number {
     const id = this.nextJob++;
     const jobs = new Map(this.jobs);
-    const entry = { id, pids, command, status: 'Running' };
+    const entry = { id, pids, command, status: "Running" };
     jobs.set(id, entry);
     this.jobs = jobs;
     return id;
@@ -179,11 +194,14 @@ export function removeJob(this: Kernel, id: number): void {
     this.jobs = jobs;
 }
 
-export function updateJobStatus(this: Kernel, id: number, status: string): void {
+export function updateJobStatus(
+    this: Kernel,
+    id: number,
+    status: string,
+): void {
     const job = this.jobs.get(id);
     if (!job) return;
     const jobs = new Map(this.jobs);
     jobs.set(id, { ...job, status });
     this.jobs = jobs;
 }
-

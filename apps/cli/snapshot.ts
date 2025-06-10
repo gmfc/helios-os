@@ -1,2 +1,1 @@
-export { SNAPSHOT_SOURCE } from '../../core/fs/bin';
-
+export { SNAPSHOT_SOURCE } from "../../core/fs/bin";

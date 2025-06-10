@@ -1,1 +1,1 @@
-export { RM_SOURCE } from '../../core/fs/bin';
+export { RM_SOURCE } from "../../core/fs/bin";

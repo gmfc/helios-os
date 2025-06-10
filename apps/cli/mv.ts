@@ -1,1 +1,1 @@
-export { MV_SOURCE } from '../../core/fs/bin';
+export { MV_SOURCE } from "../../core/fs/bin";

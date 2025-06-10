@@ -1,2 +1,1 @@
-export { BASH_SOURCE } from '../../core/fs/bin';
-
+export { BASH_SOURCE } from "../../core/fs/bin";

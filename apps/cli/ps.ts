@@ -1,1 +1,1 @@
-export { PS_SOURCE } from '../../core/fs/bin';
+export { PS_SOURCE } from "../../core/fs/bin";
