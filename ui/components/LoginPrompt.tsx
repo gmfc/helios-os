@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { INPUT_STYLE, LOGIN_CONTAINER_STYLE } from "../constants";
 
 interface LoginPromptProps {
     onLogin: (user: string, pass: string) => void;
@@ -28,16 +29,11 @@ export const LoginPrompt: React.FC<LoginPromptProps> = ({ onLogin, error }) => {
     const inputProps = {
         autoFocus: true,
         onKeyDown: handleKey,
-        style: {
-            background: "black",
-            color: "#d4d4d4",
-            border: "none",
-            outline: "none",
-        } as React.CSSProperties,
+        style: INPUT_STYLE,
     };
 
     return (
-        <div style={{ color: "#d4d4d4", padding: "10px" }}>
+        <div style={LOGIN_CONTAINER_STYLE}>
             {error && <div style={{ color: "red" }}>{error}</div>}
             {step === "user" ? (
                 <label>
