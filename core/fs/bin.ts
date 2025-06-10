@@ -2,25 +2,25 @@
  * This file contains the source code for the initial binary programs
  * that will be loaded into the virtual file system.
  */
-import { CAT_SOURCE } from '../../apps/bin-src/cat';
-import { ECHO_SOURCE } from '../../apps/bin-src/echo';
-import { NANO_SOURCE } from '../../apps/bin-src/nano';
-import { BROWSER_SOURCE } from '../../apps/bin-src/browser';
-import { PING_SOURCE } from '../../apps/bin-src/ping';
-import { DESKTOP_SOURCE } from '../../apps/bin-src/desktop';
-import { LS_SOURCE } from '../../apps/bin-src/ls';
-import { MKDIR_SOURCE } from '../../apps/bin-src/mkdir';
-import { RM_SOURCE } from '../../apps/bin-src/rm';
-import { MV_SOURCE } from '../../apps/bin-src/mv';
-import { PS_SOURCE } from '../../apps/bin-src/ps';
-import { KILL_SOURCE } from '../../apps/bin-src/kill';
-import { SLEEP_SOURCE } from '../../apps/bin-src/sleep';
-import { ULIMIT_SOURCE } from '../../apps/bin-src/ulimit';
-import { BASH_SOURCE } from '../../apps/bin-src/bash';
-import { LOGIN_SOURCE } from '../../apps/bin-src/login';
-import { INIT_SOURCE } from '../../apps/bin-src/init';
-import { REBOOT_SOURCE } from '../../apps/bin-src/reboot';
-import { SNAPSHOT_SOURCE } from '../../apps/bin-src/snapshot';
+import { CAT_SOURCE } from '../../apps/cli/src/cat';
+import { ECHO_SOURCE } from '../../apps/cli/src/echo';
+import { NANO_SOURCE } from '../../apps/cli/src/nano';
+import { BROWSER_SOURCE } from '../../apps/cli/src/browser';
+import { PING_SOURCE } from '../../apps/cli/src/ping';
+import { DESKTOP_SOURCE } from '../../apps/cli/src/desktop';
+import { LS_SOURCE } from '../../apps/cli/src/ls';
+import { MKDIR_SOURCE } from '../../apps/cli/src/mkdir';
+import { RM_SOURCE } from '../../apps/cli/src/rm';
+import { MV_SOURCE } from '../../apps/cli/src/mv';
+import { PS_SOURCE } from '../../apps/cli/src/ps';
+import { KILL_SOURCE } from '../../apps/cli/src/kill';
+import { SLEEP_SOURCE } from '../../apps/cli/src/sleep';
+import { ULIMIT_SOURCE } from '../../apps/cli/src/ulimit';
+import { BASH_SOURCE } from '../../apps/cli/src/bash';
+import { LOGIN_SOURCE } from '../../apps/cli/src/login';
+import { INIT_SOURCE } from '../../apps/cli/src/init';
+import { REBOOT_SOURCE } from '../../apps/cli/src/reboot';
+import { SNAPSHOT_SOURCE } from '../../apps/cli/src/snapshot';
 
 export const CAT_MANIFEST = JSON.stringify({
   name: 'cat',
