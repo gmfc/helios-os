@@ -341,6 +341,7 @@ async fn run_isolate_slice(
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             save_fs,
             load_fs,
