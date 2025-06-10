@@ -12,7 +12,9 @@
     "build": "pnpm build:apps && esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --target=esnext --platform=browser --tsconfig=tsconfig.json && cp ui/index.html dist/index.html",
     "build:release": "pnpm build && cd host && tauri build",
     "helios": "tsx tools/helios.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint -c .eslintrc.cjs \"**/*.{ts,tsx}\"",
+    "precommit": "pnpm lint && pnpm test"
   },
   "dependencies": {
     "@pablo-lion/xterm-react": "^1.1.2",
