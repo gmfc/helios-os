@@ -643,6 +643,7 @@ export class Kernel {
       }
       pcb.exited = true;
       pcb.exitCode = sig ?? 9;
+        invoke('drop_isolate', { pid: pcb.isolateId }).catch(() => {});
       this.readyQueue = this.readyQueue.filter(p => p.pid !== pid);
       for (const [id, job] of this.jobs.entries()) {
           if (job.pids.includes(pid)) {
@@ -869,6 +870,11 @@ export class Kernel {
       console.error('Process', pcb.pid, 'crashed or exceeded quota:', e);
       pcb.exitCode = 1;
       pcb.exited = true;
+    }
+    if (pcb.exited) {
+      try {
+        await invoke('drop_isolate', { pid: pcb.isolateId });
+      } catch {}
     }
     dispatcherMap.delete(pcb.pid);
   }
