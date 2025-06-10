@@ -46,6 +46,7 @@ interface ProcessControlBlock {
     cpuMs: number;
     memBytes: number;
     tty?: string;
+  started: boolean;
   allowedSyscalls?: Set<string>;
   fds: Map<FileDescriptor, FileDescriptorEntry>;
   nextFd: FileDescriptor;
@@ -263,6 +264,7 @@ export class Kernel {
       kernel.registerProc(pid);
       const pcb = kernel.state.processes.get(pid)!;
       if (pcb.quotaMs_total === undefined) pcb.quotaMs_total = Infinity;
+      if (pcb.started === undefined) pcb.started = false;
       for (const fd of pcb.fds.keys()) {
         kernel.registerProcFd(pid, fd);
       }
@@ -352,6 +354,7 @@ export class Kernel {
         cpuMs: 0,
         memBytes: 0,
         tty: undefined,
+        started: false,
         allowedSyscalls: undefined,
         fds: new Map(),
         nextFd: 3, // 0, 1, 2 are reserved for stdio
@@ -621,6 +624,7 @@ export class Kernel {
     pcb.cpuMs = 0;
     pcb.memBytes = 0;
     pcb.isolateId = pid;
+    pcb.started = false;
     if (opts.tty !== undefined) pcb.tty = opts.tty;
     if (opts.syscalls) pcb.allowedSyscalls = new Set(opts.syscalls);
     pcb.code = code;
@@ -836,10 +840,11 @@ export class Kernel {
     try {
         const result: any = await invoke('run_isolate_slice', {
             pid: pcb.isolateId,
-            code: wrapped,
+            code: pcb.started ? undefined : wrapped,
             sliceMs: pcb.quotaMs,
             quotaMem: pcb.quotaMem,
         });
+        pcb.started = true;
         if (result) {
             pcb.cpuMs += result.cpu_ms ?? 0;
             pcb.memBytes += result.mem_bytes ?? 0;
