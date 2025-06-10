@@ -866,13 +866,20 @@ export class Kernel {
     }
   }
 
-  public stop(): void {
+  public async stop(): Promise<void> {
     persistKernelSnapshot(this.snapshot());
+    if ((this.state.fs as any).close) {
+      try {
+        await (this.state.fs as any).close();
+      } catch (e) {
+        console.error(e);
+      }
+    }
     this.running = false;
   }
 
-  public reboot(): void {
-    this.stop();
+  public async reboot(): Promise<void> {
+    await this.stop();
     eventBus.emit('system.reboot', {});
   }
 }
