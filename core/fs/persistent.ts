@@ -4,32 +4,34 @@ import type { FileSystemNode, FileSystemSnapshot, Permissions } from "./index";
 import { getParentPath, getBaseName } from "../utils/path";
 import {
     CAT_SOURCE,
-    CAT_MANIFEST,
     ECHO_SOURCE,
-    ECHO_MANIFEST,
     NANO_SOURCE,
-    NANO_MANIFEST,
     BROWSER_SOURCE,
-    BROWSER_MANIFEST,
     PING_SOURCE,
-    PING_MANIFEST,
     DESKTOP_SOURCE,
-    DESKTOP_MANIFEST,
     PS_SOURCE,
-    PS_MANIFEST,
     SLEEP_SOURCE,
-    SLEEP_MANIFEST,
     INIT_SOURCE,
-    INIT_MANIFEST,
     REBOOT_SOURCE,
-    REBOOT_MANIFEST,
     SNAPSHOT_SOURCE,
-    SNAPSHOT_MANIFEST,
     LOGIN_SOURCE,
-    LOGIN_MANIFEST,
     BASH_SOURCE,
-    BASH_MANIFEST,
 } from "./generatedApps";
+import {
+    CAT_MANIFEST,
+    ECHO_MANIFEST,
+    NANO_MANIFEST,
+    BROWSER_MANIFEST,
+    PING_MANIFEST,
+    DESKTOP_MANIFEST,
+    PS_MANIFEST,
+    SLEEP_MANIFEST,
+    INIT_MANIFEST,
+    REBOOT_MANIFEST,
+    SNAPSHOT_MANIFEST,
+    LOGIN_MANIFEST,
+    BASH_MANIFEST,
+} from "./bin";
 
 class LRUCache<K, V> {
     private map = new Map<K, V>();

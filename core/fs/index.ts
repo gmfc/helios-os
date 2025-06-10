@@ -11,6 +11,9 @@ import {
     BASH_SOURCE,
     REBOOT_SOURCE,
     SNAPSHOT_SOURCE,
+    SLEEP_SOURCE,
+} from "./generatedApps";
+import {
     CAT_MANIFEST,
     ECHO_MANIFEST,
     NANO_MANIFEST,
@@ -18,14 +21,13 @@ import {
     PING_MANIFEST,
     DESKTOP_MANIFEST,
     PS_MANIFEST,
-    SLEEP_SOURCE,
     SLEEP_MANIFEST,
     INIT_MANIFEST,
     LOGIN_MANIFEST,
     BASH_MANIFEST,
     REBOOT_MANIFEST,
     SNAPSHOT_MANIFEST,
-} from "./generatedApps";
+} from "./bin";
 import { createPersistHook, loadSnapshot } from "./sqlite";
 import type { AsyncFileSystem } from "./async";
 import { getParentPath, getBaseName } from "../utils/path";
