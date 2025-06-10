@@ -1,4 +1,5 @@
 import assert from "assert";
+import { test } from "vitest";
 import { createHash } from "node:crypto";
 import { Kernel } from "./kernel";
 import { InMemoryFileSystem } from "./fs";
@@ -38,4 +39,6 @@ async function run() {
     console.log("Networked snapshot restore test passed.");
 }
 
-run();
+test("snapshot", async () => {
+    await run();
+});
