@@ -12,10 +12,11 @@
     "build:release": "pnpm build && cd host && tauri build",
     "helios": "tsx tools/helios.ts",
     "test": "esbuild core/fs/index.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/fs/index.test.js && node core/fs/index.test.js && rm core/fs/index.test.js && esbuild core/kernel.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/kernel.test.js && node core/kernel.test.js && rm core/kernel.test.js && esbuild core/net/index.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/net/index.test.js && node core/net/index.test.js && rm core/net/index.test.js && esbuild core/snapshot.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/snapshot.test.js && node core/snapshot.test.js && rm core/snapshot.test.js"
-    },
+  },
   "dependencies": {
     "@pablo-lion/xterm-react": "^1.1.2",
     "@tauri-apps/api": "^1.5.3",
+    "@tauri-apps/plugin-sql": "^2.2.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.3.0",
     "react": "^18.2.0",
