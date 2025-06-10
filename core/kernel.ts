@@ -2,6 +2,7 @@
 // Implementation to follow based on the project roadmap. 
 
 import { InMemoryFileSystem, FileSystemNode, FileSystemSnapshot, loadFileSystem } from './fs';
+import type { AsyncFileSystem } from './fs/async';
 import { bootstrapFileSystem } from './fs/pure';
 import {
   createPersistHook,
@@ -82,7 +83,7 @@ export interface WindowOpts {
 }
 
 export interface Snapshot {
-  fs: any;
+  fs?: any;
   processes: any;
   windows: Array<{ html: Uint8Array; opts: WindowOpts }>;
   nextPid: number;
@@ -104,7 +105,7 @@ const dispatcherMap: Map<ProcessID, SyscallDispatcher> = new Map();
  * The Helios-OS Kernel, responsible for process, file, and system management.
  */
 export interface KernelState {
-  fs: InMemoryFileSystem;
+  fs: AsyncFileSystem;
   processes: Map<ProcessID, ProcessControlBlock>;
   nextPid: ProcessID;
   nics: Map<string, NIC>;
@@ -124,7 +125,7 @@ export class Kernel {
   private jobs: Map<number, { id: number; pids: number[]; command: string; status: string }> = new Map();
   private nextJob = 1;
 
-  private constructor(fs: InMemoryFileSystem) {
+  private constructor(fs: AsyncFileSystem) {
     this.state = {
       fs,
       processes: new Map(),
@@ -159,17 +160,15 @@ export class Kernel {
       });
     }
     try {
-      const node = fs.getNode('/sbin/init');
-      if (node && node.kind === 'file' && node.data) {
-        const code = new TextDecoder().decode(node.data);
-        let syscalls: string[] | undefined;
-        const m = fs.getNode('/sbin/init.manifest.json');
-        if (m && m.kind === 'file' && m.data) {
-          const parsed = JSON.parse(new TextDecoder().decode(m.data));
-          if (Array.isArray(parsed.syscalls)) syscalls = parsed.syscalls;
-        }
-        kernel.initPid = await kernel.syscall_spawn(code, { syscalls });
-      }
+      const initData = await fs.read('/sbin/init');
+      const code = new TextDecoder().decode(initData);
+      let syscalls: string[] | undefined;
+      try {
+        const mdata = await fs.read('/sbin/init.manifest.json');
+        const parsed = JSON.parse(new TextDecoder().decode(mdata));
+        if (Array.isArray(parsed.syscalls)) syscalls = parsed.syscalls;
+      } catch {}
+      kernel.initPid = await kernel.syscall_spawn(code, { syscalls });
     } catch (e) {
       console.error('Failed to spawn init:', e);
     }
@@ -219,7 +218,9 @@ export class Kernel {
     };
     const parsed: Snapshot = JSON.parse(JSON.stringify(snapshot), reviver);
 
-    const fs = new InMemoryFileSystem(snapshot.fs ?? undefined, createPersistHook());
+    const fs: AsyncFileSystem = snapshot.fs
+      ? new InMemoryFileSystem(snapshot.fs, createPersistHook())
+      : (await loadFileSystem()) ?? bootstrapFileSystem();
     const kernel = new Kernel(fs);
     kernel.state.processes = new Map(parsed.processes ?? []);
     kernel.state.nextPid = parsed.nextPid ?? 1;
@@ -282,11 +283,8 @@ export class Kernel {
 
     let source: string;
     try {
-      const node = this.state.fs.getNode(path);
-      if (!node || node.kind !== 'file' || !node.data) {
-        throw new Error();
-      }
-      source = new TextDecoder().decode(node.data);
+      const data = await this.state.fs.read(path);
+      source = new TextDecoder().decode(data);
     } catch (e) {
       console.error(`-helios: ${progName}: command not found`);
       return 127;
@@ -294,11 +292,9 @@ export class Kernel {
 
     let manifestSyscalls: string[] | undefined;
     try {
-      const mnode = this.state.fs.getNode(manifestPath);
-      if (mnode && mnode.kind === 'file' && mnode.data) {
-        const { syscalls } = JSON.parse(new TextDecoder().decode(mnode.data));
-        if (Array.isArray(syscalls)) manifestSyscalls = syscalls;
-      }
+      const mdata = await this.state.fs.read(manifestPath);
+      const { syscalls } = JSON.parse(new TextDecoder().decode(mdata));
+      if (Array.isArray(syscalls)) manifestSyscalls = syscalls;
     } catch {}
 
     return this.syscall_spawn(source, { argv, syscalls: manifestSyscalls, ...opts });
@@ -374,29 +370,29 @@ export class Kernel {
   }
 
   private ensureProcRoot() {
-    if (!this.state.fs.getNode('/proc')) {
-      this.state.fs.createVirtualDirectory('/proc', 0o555);
+    if (!(this.state.fs as any).getNode('/proc')) {
+      (this.state.fs as any).createVirtualDirectory('/proc', 0o555);
     }
   }
 
   private registerProc(pid: ProcessID) {
     this.ensureProcRoot();
-    if (!this.state.fs.getNode(`/proc/${pid}`)) {
-      this.state.fs.createVirtualDirectory(`/proc/${pid}`, 0o555);
+    if (!(this.state.fs as any).getNode(`/proc/${pid}`)) {
+      (this.state.fs as any).createVirtualDirectory(`/proc/${pid}`, 0o555);
     }
-    if (!this.state.fs.getNode(`/proc/${pid}/status`)) {
-      this.state.fs.createVirtualFile(`/proc/${pid}/status`, () => this.procStatus(pid), 0o444);
+    if (!(this.state.fs as any).getNode(`/proc/${pid}/status`)) {
+      (this.state.fs as any).createVirtualFile(`/proc/${pid}/status`, () => this.procStatus(pid), 0o444);
     }
-    if (!this.state.fs.getNode(`/proc/${pid}/fd`)) {
-      this.state.fs.createVirtualDirectory(`/proc/${pid}/fd`, 0o555);
+    if (!(this.state.fs as any).getNode(`/proc/${pid}/fd`)) {
+      (this.state.fs as any).createVirtualDirectory(`/proc/${pid}/fd`, 0o555);
     }
   }
 
   private registerProcFd(pid: ProcessID, fd: number) {
     const pcb = this.state.processes.get(pid);
     if (!pcb) return;
-    if (!this.state.fs.getNode(`/proc/${pid}/fd/${fd}`)) {
-      this.state.fs.createVirtualFile(`/proc/${pid}/fd/${fd}`, () => {
+    if (!(this.state.fs as any).getNode(`/proc/${pid}/fd/${fd}`)) {
+      (this.state.fs as any).createVirtualFile(`/proc/${pid}/fd/${fd}`, () => {
         const entry = pcb.fds.get(fd);
         return new TextEncoder().encode(entry ? entry.path : '');
       }, 0o444);
@@ -405,8 +401,8 @@ export class Kernel {
 
   private removeProcFd(pid: ProcessID, fd: number) {
     const path = `/proc/${pid}/fd/${fd}`;
-    if (this.state.fs.getNode(path)) {
-      this.state.fs.remove(path);
+    if ((this.state.fs as any).getNode(path)) {
+      (this.state.fs as any).remove(path);
     }
   }
 
@@ -502,16 +498,8 @@ export class Kernel {
 
   private async syscall_open(pcb: ProcessControlBlock, path: string, flags: string): Promise<FileDescriptor> {
 
-    let node = this.state.fs.getNode(path);
-    if (!node) {
-      if (flags.includes('w') || flags.includes('a')) {
-        const fsClone = this.state.fs.clone();
-        node = fsClone.createFile(path, new Uint8Array(), 0o644);
-        this.state.fs = fsClone;
-      } else {
-        throw new Error(`ENOENT: no such file or directory, open '${path}'`);
-      }
-    } else if (node.kind === 'dir') {
+    const node = await this.state.fs.open(path, flags);
+    if (node.kind === 'dir') {
       throw new Error(`EISDIR: illegal operation on a directory, open '${path}'`);
     }
 
@@ -539,10 +527,11 @@ export class Kernel {
 
     const fd = pcb.nextFd++;
     let position = 0;
-    if (flags.includes('a') && node.data) {
-      position = node.data.length;
+    if (flags.includes('a')) {
+      const data = await this.state.fs.read(path);
+      position = data.length;
     }
-    pcb.fds.set(fd, { path, position, flags, virtual: node.virtual });
+    pcb.fds.set(fd, { path, position, flags, virtual: (node as any).virtual });
     this.registerProcFd(pcb.pid, fd);
     return fd;
   }
@@ -553,12 +542,8 @@ export class Kernel {
       throw new Error('EBADF: bad file descriptor');
     }
 
-    const node = this.state.fs.getNode(entry.path);
-    if (!node || node.kind !== 'file') {
-      throw new Error('EBADF: bad file descriptor');
-    }
-
-    const bytes = this.state.fs.readFile(entry.path).subarray(entry.position, entry.position + length);
+    const data = await this.state.fs.read(entry.path);
+    const bytes = data.subarray(entry.position, entry.position + length);
     entry.position += bytes.length;
     return bytes;
   }
@@ -580,27 +565,19 @@ export class Kernel {
       throw new Error('EBADF: file not opened for writing');
     }
 
-    const node = this.state.fs.getNode(entry.path);
-    if (!node || node.kind !== 'file') {
-      throw new Error('EBADF: bad file descriptor');
-    }
-
     if (!entry.flags.includes('w') && !entry.flags.includes('a')) {
       throw new Error('EBADF: file not opened for writing');
     }
 
-    const before = node.data ? node.data.slice(0, entry.position) : new Uint8Array();
-    const after = node.data ? node.data.slice(entry.position + data.length) : new Uint8Array();
+    const current = await this.state.fs.read(entry.path);
+    const before = current.slice(0, entry.position);
+    const after = current.slice(entry.position + data.length);
     const newData = new Uint8Array(before.length + data.length + after.length);
     newData.set(before, 0);
     newData.set(data, before.length);
     newData.set(after, before.length + data.length);
-    const fsClone = this.state.fs.clone();
-    const target = fsClone.getNode(entry.path)!;
-    target.data = newData;
-    target.modifiedAt = new Date();
+    await this.state.fs.write(entry.path, newData);
     entry.position += data.length;
-    this.state.fs = fsClone;
     return data.length;
   }
 
@@ -691,41 +668,31 @@ export class Kernel {
   }
 
   private async syscall_mkdir(path: string, perms: number): Promise<number> {
-    const fsClone = this.state.fs.clone();
-    fsClone.createDirectory(path, perms);
-    this.state.fs = fsClone;
+    await this.state.fs.mkdir(path, perms);
     return 0;
   }
 
   private async syscall_readdir(path: string): Promise<FileSystemNode[]> {
-    return this.state.fs.listDirectory(path);
+    return this.state.fs.readdir(path);
   }
 
   private async syscall_unlink(path: string): Promise<number> {
-    const fsClone = this.state.fs.clone();
-    fsClone.remove(path);
-    this.state.fs = fsClone;
+    await this.state.fs.unlink(path);
     return 0;
   }
 
   private async syscall_rename(oldPath: string, newPath: string): Promise<number> {
-    const fsClone = this.state.fs.clone();
-    fsClone.rename(oldPath, newPath);
-    this.state.fs = fsClone;
+    await this.state.fs.rename(oldPath, newPath);
     return 0;
   }
 
   private async syscall_mount(image: FileSystemSnapshot, path: string): Promise<number> {
-    const fsClone = this.state.fs.clone();
-    fsClone.mount(image, path);
-    this.state.fs = fsClone;
+    await this.state.fs.mount(image, path);
     return 0;
   }
 
   private async syscall_unmount(path: string): Promise<number> {
-    const fsClone = this.state.fs.clone();
-    fsClone.unmount(path);
-    this.state.fs = fsClone;
+    await this.state.fs.unmount(path);
     return 0;
   }
 
@@ -817,7 +784,9 @@ export class Kernel {
       return value;
     };
 
-    const fsSnapshot = this.state.fs.getSnapshot();
+    const fsSnapshot = (this.state.fs as any).getSnapshot
+      ? (this.state.fs as any).getSnapshot()
+      : undefined;
     const state: Snapshot = {
       fs: fsSnapshot,
       processes: this.state.processes,
