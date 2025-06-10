@@ -23,10 +23,13 @@ This project uses `pnpm` for managing Node dependencies and scripts.
     pnpm build:release
     ```
 
-4. Run the test suite before committing:
+4. Run the test suite with **Vitest** before committing:
 
     ```sh
     pnpm test
     ```
+
+    Vitest compiles the TypeScript sources automatically, so no esbuild step is
+    required.
 
 The project enforces TypeScript strict mode. Use four spaces for indentation and ensure files end with a trailing newline.
