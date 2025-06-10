@@ -141,7 +141,7 @@ The UI component sends entered lines to `kernel.spawn()` and prints output when 
 5. write & read: `echo hi > /tmp/foo` then `cat /tmp/foo` prints `hi`.
 6. Process cleanup: repeated `echo` does not leak PIDs or FDs.
 
-A Jest suite can automate these checks by invoking kernel APIs directly.
+A Vitest suite can automate these checks by invoking kernel APIs directly.
 
 ## Next Steps
 
