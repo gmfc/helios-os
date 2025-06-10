@@ -1,4 +1,4 @@
-import type { SyscallDispatcher } from "../../core/kernel/syscalls";
+import type { SyscallDispatcher } from "../../types/syscalls";
 
 export async function main(syscall: SyscallDispatcher, _argv: string[]): Promise<number> {
     const STDERR_FD = 2;

@@ -1,4 +1,4 @@
-import type { SyscallDispatcher } from "../../core/kernel/syscalls";
+import type { SyscallDispatcher } from "../../types/syscalls";
 
 export async function main(syscall: SyscallDispatcher): Promise<number> {
     await syscall('reboot');

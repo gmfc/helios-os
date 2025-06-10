@@ -1,4 +1,4 @@
-import type { SyscallDispatcher } from "../../core/kernel/syscalls";
+import type { SyscallDispatcher } from "../../types/syscalls";
 
 export async function main(_syscall: SyscallDispatcher, argv: string[]): Promise<number> {
     const ms = parseInt(argv[0] || '1', 10) * 1000;
