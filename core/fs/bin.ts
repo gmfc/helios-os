@@ -2,25 +2,45 @@
  * This file contains the source code for the initial binary programs
  * that will be loaded into the virtual file system.
  */
-import { CAT_SOURCE } from "../../apps/cli/src/cat";
-import { ECHO_SOURCE } from "../../apps/cli/src/echo";
-import { NANO_SOURCE } from "../../apps/cli/src/nano";
-import { BROWSER_SOURCE } from "../../apps/cli/src/browser";
-import { PING_SOURCE } from "../../apps/cli/src/ping";
-import { DESKTOP_SOURCE } from "../../apps/cli/src/desktop";
-import { LS_SOURCE } from "../../apps/cli/src/ls";
-import { MKDIR_SOURCE } from "../../apps/cli/src/mkdir";
-import { RM_SOURCE } from "../../apps/cli/src/rm";
-import { MV_SOURCE } from "../../apps/cli/src/mv";
-import { PS_SOURCE } from "../../apps/cli/src/ps";
-import { KILL_SOURCE } from "../../apps/cli/src/kill";
-import { SLEEP_SOURCE } from "../../apps/cli/src/sleep";
-import { ULIMIT_SOURCE } from "../../apps/cli/src/ulimit";
-import { BASH_SOURCE } from "../../apps/cli/src/bash";
-import { LOGIN_SOURCE } from "../../apps/cli/src/login";
-import { INIT_SOURCE } from "../../apps/cli/src/init";
-import { REBOOT_SOURCE } from "../../apps/cli/src/reboot";
-import { SNAPSHOT_SOURCE } from "../../apps/cli/src/snapshot";
+import { main as catMain } from "../../apps/cli/programs/cat";
+import { main as echoMain } from "../../apps/cli/programs/echo";
+import { main as nanoMain } from "../../apps/cli/programs/nano";
+import { main as browserMain } from "../../apps/cli/programs/browser";
+import { main as pingMain } from "../../apps/cli/programs/ping";
+import { main as desktopMain } from "../../apps/cli/programs/desktop";
+import { main as lsMain } from "../../apps/cli/programs/ls";
+import { main as mkdirMain } from "../../apps/cli/programs/mkdir";
+import { main as rmMain } from "../../apps/cli/programs/rm";
+import { main as mvMain } from "../../apps/cli/programs/mv";
+import { main as psMain } from "../../apps/cli/programs/ps";
+import { main as killMain } from "../../apps/cli/programs/kill";
+import { main as sleepMain } from "../../apps/cli/programs/sleep";
+import { main as ulimitMain } from "../../apps/cli/programs/ulimit";
+import { main as bashMain } from "../../apps/cli/programs/bash";
+import { main as loginMain } from "../../apps/cli/programs/login";
+import { main as initMain } from "../../apps/cli/programs/init";
+import { main as rebootMain } from "../../apps/cli/programs/reboot";
+import { main as snapshotMain } from "../../apps/cli/programs/snapshot";
+
+const CAT_SOURCE = catMain.toString();
+const ECHO_SOURCE = echoMain.toString();
+const NANO_SOURCE = nanoMain.toString();
+const BROWSER_SOURCE = browserMain.toString();
+const PING_SOURCE = pingMain.toString();
+const DESKTOP_SOURCE = desktopMain.toString();
+const LS_SOURCE = lsMain.toString();
+const MKDIR_SOURCE = mkdirMain.toString();
+const RM_SOURCE = rmMain.toString();
+const MV_SOURCE = mvMain.toString();
+const PS_SOURCE = psMain.toString();
+const KILL_SOURCE = killMain.toString();
+const SLEEP_SOURCE = sleepMain.toString();
+const ULIMIT_SOURCE = ulimitMain.toString();
+const BASH_SOURCE = bashMain.toString();
+const LOGIN_SOURCE = loginMain.toString();
+const INIT_SOURCE = initMain.toString();
+const REBOOT_SOURCE = rebootMain.toString();
+const SNAPSHOT_SOURCE = snapshotMain.toString();
 
 export const CAT_MANIFEST = JSON.stringify({
     name: "cat",
