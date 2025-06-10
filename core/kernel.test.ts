@@ -110,6 +110,39 @@ async function run() {
   assert(slices >= 3, 'process should be requeued multiple times');
   console.log('Kernel scheduler timeslice test passed.');
 
+  // persistent isolate accumulates resources across slices
+  globalThis.window = {} as any;
+  globalThis.window.crypto = {
+    getRandomValues: (arr: Uint32Array) => require('crypto').randomFillSync(arr)
+  };
+  const { mockIPC: mockPersist, clearMocks: clearPersist } = await import('@tauri-apps/api/mocks');
+  const calls: any[] = [];
+  mockPersist((cmd, args) => {
+    if (cmd === 'run_isolate_slice') {
+      calls.push(args);
+      if (calls.length === 1) {
+        return { running: true, cpu_ms: 2, mem_bytes: 100 };
+      }
+      return { running: false, exit_code: 0, cpu_ms: 3, mem_bytes: 150 };
+    }
+    return undefined;
+  });
+  const persistKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+  const persistPid = await persistKernel['syscall_spawn']('dummy', { quotaMs: 1 });
+  const persistPcb = persistKernel['state'].processes.get(persistPid);
+  await persistKernel['runProcess'](persistPcb);
+  await persistKernel['runProcess'](persistPcb);
+  clearPersist();
+  // @ts-ignore
+  delete globalThis.window;
+  assert.strictEqual(calls.length, 2, 'host called twice');
+  assert('code' in calls[0], 'first slice should include code');
+  assert(!('code' in calls[1]), 'subsequent slice should omit code');
+  assert.strictEqual(persistPcb.cpuMs, 5, 'CPU time accumulates');
+  assert.strictEqual(persistPcb.memBytes, 250, 'memory usage accumulates');
+  assert.strictEqual(persistPcb.exited, true, 'process should exit');
+  console.log('Kernel persistent isolate accumulation test passed.');
+
   // job table management
   const jobKernel: any = new (Kernel as any)(new InMemoryFileSystem());
   const jid = jobKernel.registerJob([123], 'sleep 1');
