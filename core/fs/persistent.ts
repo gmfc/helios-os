@@ -1,6 +1,7 @@
 import Database from '@tauri-apps/plugin-sql'
 import type { AsyncFileSystem } from './async'
 import type { FileSystemNode, FileSystemSnapshot, Permissions } from './index'
+import { getParentPath, getBaseName } from '../utils/path'
 import {
     CAT_SOURCE,
     CAT_MANIFEST,
@@ -166,8 +167,8 @@ export class PersistentFileSystem implements AsyncFileSystem {
     }
 
     private async createDirectoryInternal(path: string, perms: Permissions): Promise<Inode> {
-        const parentPath = this.getParentPath(path)
-        const name = this.getBaseName(path)
+        const parentPath = getParentPath(path)
+        const name = getBaseName(path)
         const parent = await this.lookup(parentPath)
         if (!parent || parent.kind !== 'dir') {
             throw new Error(`ENOENT: no such file or directory, mkdir '${path}'`)
@@ -185,8 +186,8 @@ export class PersistentFileSystem implements AsyncFileSystem {
     }
 
     private async createFileInternal(path: string, perms: Permissions, data: Uint8Array = new Uint8Array()): Promise<Inode> {
-        const parentPath = this.getParentPath(path)
-        const name = this.getBaseName(path)
+        const parentPath = getParentPath(path)
+        const name = getBaseName(path)
         const parent = await this.lookup(parentPath)
         if (!parent || parent.kind !== 'dir') {
             throw new Error(`ENOENT: no such file or directory, open '${path}'`)
@@ -255,15 +256,6 @@ export class PersistentFileSystem implements AsyncFileSystem {
         await this.createFileInternal('/bin/bash.manifest.json', 0o644, enc(BASH_MANIFEST))
     }
 
-    private getParentPath(path: string): string {
-        const parts = path.split('/').filter(p => p)
-        if (parts.length <= 1) return '/'
-        return '/' + parts.slice(0, -1).join('/')
-    }
-
-    private getBaseName(path: string): string {
-        return path.split('/').filter(p => p).pop() || ''
-    }
 
     private toNode(fullPath: string, inode: Inode): FileSystemNode {
         return {
@@ -367,12 +359,12 @@ export class PersistentFileSystem implements AsyncFileSystem {
         if (!inode) {
             throw new Error(`ENOENT: no such file or directory, rename '${oldPath}'`)
         }
-        const newParentPath = this.getParentPath(newPath)
+        const newParentPath = getParentPath(newPath)
         const newParent = await this.lookup(newParentPath)
         if (!newParent || newParent.kind !== 'dir') {
             throw new Error('ENOENT: invalid path')
         }
-        const name = this.getBaseName(newPath)
+        const name = getBaseName(newPath)
         await this.writeTx(async () => {
             await this.db.execute('UPDATE inodes SET parent_id=?1, name=?2 WHERE id=?3', [newParent.id, name, inode.id])
         })
