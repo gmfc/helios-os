@@ -18,3 +18,4 @@ export * from "./cli/programs/snapshot";
 export * from "./cli/programs/ulimit";
 
 export { BUNDLED_APPS } from "../core/fs/generatedApps";
+export type { SyscallDispatcher } from "./types/syscalls";
