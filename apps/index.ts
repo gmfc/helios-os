@@ -17,4 +17,4 @@ export * from "./cli/programs/ps";
 export * from "./cli/programs/snapshot";
 export * from "./cli/programs/ulimit";
 
-export { BUNDLED_APPS } from "../core/fs/bin";
+export { BUNDLED_APPS } from "../core/fs/generatedApps";

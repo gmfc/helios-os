@@ -25,7 +25,7 @@ import {
     BASH_MANIFEST,
     REBOOT_MANIFEST,
     SNAPSHOT_MANIFEST,
-} from "./bin";
+} from "./generatedApps";
 import { createPersistHook, loadSnapshot } from "./sqlite";
 import type { AsyncFileSystem } from "./async";
 import { getParentPath, getBaseName } from "../utils/path";
