@@ -1,4 +1,5 @@
 import assert from "assert";
+import { test } from "vitest";
 import fs from "fs";
 import { PersistentFileSystem } from "./persistent";
 
@@ -288,4 +289,6 @@ async function run() {
     cleanup();
 }
 
-run();
+test("persistent fs", async () => {
+    await run();
+});
