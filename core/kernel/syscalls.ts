@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/tauri';
-import { eventBus } from '../eventBus';
+import { eventBus } from '../utils/eventBus';
 import { NIC } from '../net/nic';
 import { TCP } from '../net/tcp';
 import { UDP } from '../net/udp';

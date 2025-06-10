@@ -13,7 +13,7 @@ import {
 } from '../fs/sqlite';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
-import { eventBus } from '../eventBus';
+import { eventBus } from '../utils/eventBus';
 import { NIC } from '../net/nic';
 import { TCP } from '../net/tcp';
 import { UDP } from '../net/udp';

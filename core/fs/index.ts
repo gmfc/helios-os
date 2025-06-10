@@ -28,6 +28,7 @@ import {
 } from './bin';
 import { createPersistHook, loadSnapshot } from './sqlite';
 import type { AsyncFileSystem } from './async';
+import { getParentPath, getBaseName } from '../utils/path';
 
 /**
  * Represents file permissions using a UNIX-like octal number.
@@ -157,14 +158,14 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     }
 
     const now = new Date();
-    const parentPath = this.getParentPath(path);
+    const parentPath = getParentPath(path);
     const parent = this.nodes.get(parentPath);
 
     if (!parent || parent.kind !== 'dir') {
       throw new Error(`ENOENT: no such file or directory, mkdir '${path}'`);
     }
 
-    const directoryName = this.getBaseName(path);
+    const directoryName = getBaseName(path);
     const directoryNode: FileSystemNode = {
       path,
       kind: 'dir',
@@ -195,14 +196,14 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     }
 
     const now = new Date();
-    const parentPath = this.getParentPath(path);
+    const parentPath = getParentPath(path);
     const parent = this.nodes.get(parentPath);
 
     if (!parent || parent.kind !== 'dir') {
       throw new Error(`ENOENT: no such file or directory, open '${path}'`);
     }
 
-    const fileName = this.getBaseName(path);
+    const fileName = getBaseName(path);
     const fileData = typeof data === 'string' ? new TextEncoder().encode(data) : data;
     const fileNode: FileSystemNode = {
       path,
@@ -234,14 +235,14 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     }
 
     const now = new Date();
-    const parentPath = this.getParentPath(path);
+    const parentPath = getParentPath(path);
     const parent = this.nodes.get(parentPath);
 
     if (!parent || parent.kind !== 'dir') {
       throw new Error(`ENOENT: no such file or directory, open '${path}'`);
     }
 
-    const fileName = this.getBaseName(path);
+    const fileName = getBaseName(path);
     const fileNode: FileSystemNode = {
       path,
       kind: 'file',
@@ -268,14 +269,14 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     }
 
     const now = new Date();
-    const parentPath = this.getParentPath(path);
+    const parentPath = getParentPath(path);
     const parent = this.nodes.get(parentPath);
 
     if (!parent || parent.kind !== 'dir') {
       throw new Error(`ENOENT: no such file or directory, mkdir '${path}'`);
     }
 
-    const directoryName = this.getBaseName(path);
+    const directoryName = getBaseName(path);
     const directoryNode: FileSystemNode = {
       path,
       kind: 'dir',
@@ -408,7 +409,7 @@ export class InMemoryFileSystem implements AsyncFileSystem {
       if (this.nodes.has(newPath)) {
         throw new Error(`EEXIST: file already exists, mount '${newPath}'`);
       }
-      const parentPath = this.getParentPath(newPath);
+      const parentPath = getParentPath(newPath);
       const parent = this.nodes.get(parentPath);
       if (!parent || parent.kind !== 'dir') {
         throw new Error(`ENOENT: no such directory, mount '${parentPath}'`);
@@ -424,7 +425,7 @@ export class InMemoryFileSystem implements AsyncFileSystem {
         data: node.kind === 'file' && node.data ? new Uint8Array(node.data) : undefined,
         children: node.kind === 'dir' ? new Map() : undefined,
       };
-      parent.children?.set(this.getBaseName(newPath), copy);
+      parent.children?.set(getBaseName(newPath), copy);
       this.nodes.set(newPath, copy);
     }
 
@@ -447,18 +448,18 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     for (const node of entries) {
       if (node.path === '/') continue;
       const targetPath = path + (node.path === '/' ? '' : node.path);
-      const parentPath = this.getParentPath(targetPath);
+      const parentPath = getParentPath(targetPath);
       const parent = this.nodes.get(parentPath);
-      parent?.children?.delete(this.getBaseName(targetPath));
+      parent?.children?.delete(getBaseName(targetPath));
       this.nodes.delete(targetPath);
     }
 
     const mountPoint = this.nodes.get(path);
     if (mountPoint && mount.createdMountPoint) {
       if (!mountPoint.children || mountPoint.children.size === 0) {
-        const parentPath = this.getParentPath(path);
+        const parentPath = getParentPath(path);
         const parent = this.nodes.get(parentPath);
-        parent?.children?.delete(this.getBaseName(path));
+        parent?.children?.delete(getBaseName(path));
         this.nodes.delete(path);
       }
     }
@@ -496,12 +497,12 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     if (node.kind === 'dir' && node.children && node.children.size > 0) {
       throw new Error('ENOTEMPTY: directory not empty');
     }
-    const parentPath = this.getParentPath(path);
+    const parentPath = getParentPath(path);
     const parent = this.nodes.get(parentPath);
     if (!parent || parent.kind !== 'dir') {
       throw new Error(`ENOENT: no such file or directory, unlink '${path}'`);
     }
-    parent.children?.delete(this.getBaseName(path));
+    parent.children?.delete(getBaseName(path));
     this.nodes.delete(path);
     this.persist();
   }
@@ -517,13 +518,13 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     if (this.nodes.has(newPath)) {
       throw new Error(`EEXIST: file already exists, rename '${newPath}'`);
     }
-    const oldParent = this.nodes.get(this.getParentPath(oldPath));
-    const newParent = this.nodes.get(this.getParentPath(newPath));
+    const oldParent = this.nodes.get(getParentPath(oldPath));
+    const newParent = this.nodes.get(getParentPath(newPath));
     if (!oldParent || oldParent.kind !== 'dir' || !newParent || newParent.kind !== 'dir') {
       throw new Error('ENOENT: invalid path');
     }
-    oldParent.children?.delete(this.getBaseName(oldPath));
-    newParent.children?.set(this.getBaseName(newPath), node);
+    oldParent.children?.delete(getBaseName(oldPath));
+    newParent.children?.set(getBaseName(newPath), node);
 
     const updatePaths = (n: FileSystemNode, oldPrefix: string, newPrefix: string) => {
       const current = n.path;
@@ -634,15 +635,6 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     };
   }
 
-  private getParentPath(path: string): string {
-    const parts = path.split('/').filter(p => p);
-    if (parts.length <= 1) return '/';
-    return '/' + parts.slice(0, -1).join('/');
-  }
-
-  private getBaseName(path: string): string {
-    return path.split('/').filter(p => p).pop() || '';
-  }
 }
 
 export type FileSystem = InMemoryFileSystem & AsyncFileSystem;

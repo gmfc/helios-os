@@ -9,7 +9,7 @@ import '@xterm/xterm/css/xterm.css';
 import { Kernel } from '../core/kernel';
 import { WindowManager, WindowManagerHandles } from './components/WindowManager';
 import LoginPrompt from './components/LoginPrompt';
-import { eventBus, type DrawPayload } from '../core/eventBus';
+import { eventBus, type DrawPayload } from '../core/utils/eventBus';
 
 // A basic theme for the terminal
 const theme: ITheme = {
