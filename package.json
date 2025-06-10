@@ -8,7 +8,8 @@
     "dev:host": "sleep 5 && cd host && tauri dev",
     "dev:host:release": "sleep 5 && cd host && tauri dev --release",
     "dev:release": "concurrently \"pnpm:dev:ui\" \"pnpm:dev:host:release\"",
-    "build": "esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --target=esnext --platform=browser --tsconfig=tsconfig.json && cp ui/index.html dist/index.html",
+    "build:apps": "tsx tools/build-apps.ts",
+    "build": "pnpm build:apps && esbuild ui/index.tsx --bundle --outfile=dist/bundle.js --target=esnext --platform=browser --tsconfig=tsconfig.json && cp ui/index.html dist/index.html",
     "build:release": "pnpm build && cd host && tauri build",
     "helios": "tsx tools/helios.ts",
     "test": "esbuild core/fs/index.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/fs/index.test.js && node core/fs/index.test.js && rm core/fs/index.test.js && esbuild core/kernel.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/kernel.test.js && node core/kernel.test.js && rm core/kernel.test.js && esbuild core/net/index.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/net/index.test.js && node core/net/index.test.js && rm core/net/index.test.js && esbuild core/snapshot.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/snapshot.test.js && node core/snapshot.test.js && rm core/snapshot.test.js && esbuild core/fs/persistent.test.ts --bundle --platform=node --format=cjs --tsconfig=tsconfig.json --outfile=core/fs/persistent.test.js && node core/fs/persistent.test.js && rm core/fs/persistent.test.js"

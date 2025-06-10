@@ -29,7 +29,7 @@ import {
     LOGIN_MANIFEST,
     BASH_SOURCE,
     BASH_MANIFEST,
-} from "./bin";
+} from "./generatedApps";
 
 class LRUCache<K, V> {
     private map = new Map<K, V>();
