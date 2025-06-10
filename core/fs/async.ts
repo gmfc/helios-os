@@ -1,4 +1,4 @@
-import type { FileSystemNode, FileSystemSnapshot, Permissions } from './index';
+import type { FileSystemNode, FileSystemSnapshot, Permissions } from "./index";
 
 export interface AsyncFileSystem {
     open(path: string, flags?: string): Promise<FileSystemNode | undefined>;

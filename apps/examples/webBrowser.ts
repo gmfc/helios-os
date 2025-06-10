@@ -1,1 +1,1 @@
-export { BROWSER_SOURCE } from '../../core/fs/bin';
+export { BROWSER_SOURCE } from "../../core/fs/bin";

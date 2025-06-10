@@ -1,2 +1,1 @@
-export { KILL_SOURCE } from '../../core/fs/bin';
-
+export { KILL_SOURCE } from "../../core/fs/bin";
