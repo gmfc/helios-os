@@ -463,3 +463,7 @@ export class Kernel {
     eventBus.emit('system.reboot', {});
   }
 }
+
+export type { ProcessID, FileDescriptor, ProcessControlBlock } from './process';
+export type { SyscallDispatcher } from './syscalls';
+
