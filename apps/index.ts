@@ -16,39 +16,5 @@ export * from './bash';
 export * from './snapshot';
 export * from './ulimit';
 
-import {
-  NANO_SOURCE,
-  BROWSER_SOURCE,
-  PING_SOURCE,
-  DESKTOP_SOURCE,
-  LS_SOURCE,
-  MKDIR_SOURCE,
-  RM_SOURCE,
-  MV_SOURCE,
-  PS_SOURCE,
-  KILL_SOURCE,
-  INIT_SOURCE,
-  LOGIN_SOURCE,
-  BASH_SOURCE,
-  SNAPSHOT_SOURCE,
-  ULIMIT_SOURCE,
-} from '../core/fs/bin';
-
-export const BUNDLED_APPS = new Map<string, string>([
-  ['nano', NANO_SOURCE],
-  ['browser', BROWSER_SOURCE],
-  ['ping', PING_SOURCE],
-  ['desktop', DESKTOP_SOURCE],
-  ['ls', LS_SOURCE],
-  ['mkdir', MKDIR_SOURCE],
-  ['rm', RM_SOURCE],
-  ['mv', MV_SOURCE],
-  ['ps', PS_SOURCE],
-  ['kill', KILL_SOURCE],
-  ['init', INIT_SOURCE],
-  ['login', LOGIN_SOURCE],
-  ['bash', BASH_SOURCE],
-  ['snapshot', SNAPSHOT_SOURCE],
-  ['ulimit', ULIMIT_SOURCE],
-]);
+export { BUNDLED_APPS } from '../core/fs/bin';
 
