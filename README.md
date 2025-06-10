@@ -222,6 +222,8 @@ Kernel denies undeclared syscalls.
 4. `pnpm build:release` – cross-build Win/macOS/Linux/ARM.
 5. `helios snap path/to/out.helios` – CLI packs snapshot for Steam Workshop.
 6. **Modders:** drop TS file in `apps/`, run `makepkg`, publish to own apt repo.
+7. `pnpm lint` checks code style; a `precommit` script automatically runs
+   `pnpm lint && pnpm test` before each commit.
 
 ---
 
