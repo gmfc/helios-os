@@ -1,24 +1,24 @@
 // Helios-OS Kernel
 // Implementation to follow based on the project roadmap. 
 
-import { InMemoryFileSystem, FileSystemNode, FileSystemSnapshot, loadFileSystem } from './fs';
-import type { AsyncFileSystem } from './fs/async';
-import { bootstrapFileSystem } from './fs/pure';
+import { InMemoryFileSystem, FileSystemNode, FileSystemSnapshot, loadFileSystem } from '../fs';
+import type { AsyncFileSystem } from '../fs/async';
+import { bootstrapFileSystem } from '../fs/pure';
 import {
   createPersistHook,
   loadKernelSnapshot,
   persistKernelSnapshot,
   saveNamedSnapshot,
   loadNamedSnapshot,
-} from './fs/sqlite';
+} from '../fs/sqlite';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
-import { eventBus } from './eventBus';
-import { NIC } from './net/nic';
-import { TCP } from './net/tcp';
-import { UDP } from './net/udp';
-import { BASH_SOURCE } from './fs/bin';
-import { startHttpd, startSshd, startPingService } from './services';
+import { eventBus } from '../eventBus';
+import { NIC } from '../net/nic';
+import { TCP } from '../net/tcp';
+import { UDP } from '../net/udp';
+import { BASH_SOURCE } from '../fs/bin';
+import { startHttpd, startSshd, startPingService } from '../services';
 
 type ProcessID = number;
 type FileDescriptor = number;
