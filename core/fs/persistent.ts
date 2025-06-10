@@ -1,6 +1,34 @@
 import Database from '@tauri-apps/plugin-sql'
 import type { AsyncFileSystem } from './async'
 import type { FileSystemNode, FileSystemSnapshot, Permissions } from './index'
+import {
+    CAT_SOURCE,
+    CAT_MANIFEST,
+    ECHO_SOURCE,
+    ECHO_MANIFEST,
+    NANO_SOURCE,
+    NANO_MANIFEST,
+    BROWSER_SOURCE,
+    BROWSER_MANIFEST,
+    PING_SOURCE,
+    PING_MANIFEST,
+    DESKTOP_SOURCE,
+    DESKTOP_MANIFEST,
+    PS_SOURCE,
+    PS_MANIFEST,
+    SLEEP_SOURCE,
+    SLEEP_MANIFEST,
+    INIT_SOURCE,
+    INIT_MANIFEST,
+    REBOOT_SOURCE,
+    REBOOT_MANIFEST,
+    SNAPSHOT_SOURCE,
+    SNAPSHOT_MANIFEST,
+    LOGIN_SOURCE,
+    LOGIN_MANIFEST,
+    BASH_SOURCE,
+    BASH_MANIFEST,
+} from './bin'
 
 class LRUCache<K, V> {
     private map = new Map<K, V>()
@@ -88,7 +116,16 @@ export class PersistentFileSystem implements AsyncFileSystem {
             )
             await db.execute('COMMIT')
         }
-        return new PersistentFileSystem(db)
+        const fs = new PersistentFileSystem(db)
+        const cnt = await db.select<{ count: number }[]>(
+            'SELECT COUNT(*) as count FROM inodes'
+        )
+        if (cnt[0].count === 1) {
+            await fs.writeTx(async () => {
+                await fs.initDefaultFiles()
+            })
+        }
+        return fs
     }
 
     private async lookup(path: string): Promise<Inode | undefined> {
@@ -179,6 +216,43 @@ export class PersistentFileSystem implements AsyncFileSystem {
             await this.db.execute('ROLLBACK')
             throw e
         }
+    }
+
+    private async initDefaultFiles(): Promise<void> {
+        const enc = (s: string) => new TextEncoder().encode(s)
+
+        await this.createDirectoryInternal('/etc', 0o755)
+        await this.createFileInternal('/etc/issue', 0o644, enc('Welcome to Helios-OS v0.1\n'))
+
+        await this.createDirectoryInternal('/bin', 0o755)
+        await this.createFileInternal('/bin/cat', 0o755, enc(CAT_SOURCE))
+        await this.createFileInternal('/bin/cat.manifest.json', 0o644, enc(CAT_MANIFEST))
+        await this.createFileInternal('/bin/echo', 0o755, enc(ECHO_SOURCE))
+        await this.createFileInternal('/bin/echo.manifest.json', 0o644, enc(ECHO_MANIFEST))
+        await this.createFileInternal('/bin/nano', 0o755, enc(NANO_SOURCE))
+        await this.createFileInternal('/bin/nano.manifest.json', 0o644, enc(NANO_MANIFEST))
+        await this.createFileInternal('/bin/browser', 0o755, enc(BROWSER_SOURCE))
+        await this.createFileInternal('/bin/browser.manifest.json', 0o644, enc(BROWSER_MANIFEST))
+        await this.createFileInternal('/bin/ping', 0o755, enc(PING_SOURCE))
+        await this.createFileInternal('/bin/ping.manifest.json', 0o644, enc(PING_MANIFEST))
+        await this.createFileInternal('/bin/desktop', 0o755, enc(DESKTOP_SOURCE))
+        await this.createFileInternal('/bin/desktop.manifest.json', 0o644, enc(DESKTOP_MANIFEST))
+        await this.createFileInternal('/bin/ps', 0o755, enc(PS_SOURCE))
+        await this.createFileInternal('/bin/ps.manifest.json', 0o644, enc(PS_MANIFEST))
+        await this.createFileInternal('/bin/sleep', 0o755, enc(SLEEP_SOURCE))
+        await this.createFileInternal('/bin/sleep.manifest.json', 0o644, enc(SLEEP_MANIFEST))
+
+        await this.createDirectoryInternal('/sbin', 0o755)
+        await this.createFileInternal('/sbin/init', 0o755, enc(INIT_SOURCE))
+        await this.createFileInternal('/sbin/init.manifest.json', 0o644, enc(INIT_MANIFEST))
+        await this.createFileInternal('/sbin/reboot', 0o755, enc(REBOOT_SOURCE))
+        await this.createFileInternal('/sbin/reboot.manifest.json', 0o644, enc(REBOOT_MANIFEST))
+        await this.createFileInternal('/sbin/snapshot', 0o755, enc(SNAPSHOT_SOURCE))
+        await this.createFileInternal('/sbin/snapshot.manifest.json', 0o644, enc(SNAPSHOT_MANIFEST))
+        await this.createFileInternal('/bin/login', 0o755, enc(LOGIN_SOURCE))
+        await this.createFileInternal('/bin/login.manifest.json', 0o644, enc(LOGIN_MANIFEST))
+        await this.createFileInternal('/bin/bash', 0o755, enc(BASH_SOURCE))
+        await this.createFileInternal('/bin/bash.manifest.json', 0o644, enc(BASH_MANIFEST))
     }
 
     private getParentPath(path: string): string {
