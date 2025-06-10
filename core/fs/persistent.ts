@@ -427,6 +427,18 @@ export class PersistentFileSystem implements AsyncFileSystem {
         })
         this.cache.delete(path)
     }
+
+    /**
+     * Flush WAL and close the underlying database connection.
+     * Should be called during shutdown to keep the DB compact.
+     */
+    async close(): Promise<void> {
+        try {
+            await this.db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+        } finally {
+            await this.db.close()
+        }
+    }
 }
 
 export async function loadFileSystem(): Promise<PersistentFileSystem> {
