@@ -1,5 +1,5 @@
 import assert from "assert";
-import { test } from "vitest";
+import { describe, it } from "vitest";
 import { TCP } from "./tcp";
 import { UDP } from "./udp";
 import { NIC } from "./nic";
@@ -94,10 +94,12 @@ async function testTcpEcho() {
     console.log("TCP send response test passed.");
 }
 
-test("TCP listen/connect", testTcp);
-test("UDP handler source info", testUdp);
-test("Switch forwarding", testSwitch);
-test("Router forward", testRouter);
-test("TCP send response", async () => {
-    await testTcpEcho();
+describe("Networking", () => {
+    it("TCP listen/connect", testTcp);
+    it("UDP handler source info", testUdp);
+    it("Switch forwarding", testSwitch);
+    it("Router forward", testRouter);
+    it("TCP send response", async () => {
+        await testTcpEcho();
+    });
 });
