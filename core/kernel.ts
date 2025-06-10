@@ -833,18 +833,24 @@ export class Kernel {
   }
 
   private async runProcess(pcb: ProcessControlBlock): Promise<void> {
-    if (!pcb.code) return;
+    if (!pcb.started && !pcb.code) return;
     const syscall = this.createSyscallDispatcher(pcb.pid);
     dispatcherMap.set(pcb.pid, syscall);
-    const wrapped = `const main = ${pcb.code}; main(syscall, ${JSON.stringify(pcb.argv ?? [])});`;
+    const args: Record<string, any> = {
+        pid: pcb.isolateId,
+        sliceMs: pcb.quotaMs,
+        quotaMem: pcb.quotaMem,
+    };
+    if (!pcb.started) {
+        const wrapped = `const main = ${pcb.code}; main(syscall, ${JSON.stringify(pcb.argv ?? [])});`;
+        args.code = wrapped;
+    }
     try {
-        const result: any = await invoke('run_isolate_slice', {
-            pid: pcb.isolateId,
-            code: pcb.started ? undefined : wrapped,
-            sliceMs: pcb.quotaMs,
-            quotaMem: pcb.quotaMem,
-        });
-        pcb.started = true;
+        const result: any = await invoke('run_isolate_slice', args);
+        if (!pcb.started) {
+            pcb.started = true;
+            pcb.code = undefined;
+        }
         if (result) {
             pcb.cpuMs += result.cpu_ms ?? 0;
             pcb.memBytes += result.mem_bytes ?? 0;
