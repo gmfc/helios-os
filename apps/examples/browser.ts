@@ -1,5 +1,5 @@
-import { Kernel } from '../core/kernel';
-import { startHttpd } from '../core/services/http';
+import { Kernel } from '../../core/kernel';
+import { startHttpd } from '../../core/services/http';
 
 export async function runBrowserExample(kernel: Kernel) {
   startHttpd(kernel, { port: 8080 });

@@ -1,5 +1,5 @@
-import { Kernel } from '../core/kernel';
-import { startSshd } from '../core/services/ssh';
+import { Kernel } from '../../core/kernel';
+import { startSshd } from '../../core/services/ssh';
 
 export async function runSshExample(kernel: Kernel) {
   startSshd(kernel, { port: 2222 });

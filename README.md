@@ -34,7 +34,10 @@ For detailed guides on each component see the [docs directory](docs/README.md).
 
 ```
 helios/
-├─ apps/            # Sample player programs (TS)
+├─ apps/
+│  ├─ cli/          # Built-in CLI commands
+│  │  └─ src/       # Source for bundled binaries
+│  └─ examples/     # Sample demo programs
 ├─ core/
 │  ├─ kernel.ts     # Syscall bus + scheduler
 │  ├─ fs/           # In-mem FS impl
