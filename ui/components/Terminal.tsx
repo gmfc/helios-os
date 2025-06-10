@@ -37,7 +37,7 @@ const Terminal = forwardRef<TerminalHandles, TerminalProps>(({ kernel }, ref) =>
 
         const originalLog = console.log;
         const originalError = console.error;
-        const writeToTerminal = (data: any[], originalFunc: (...d: any[]) => void) => {
+        const writeToTerminal = (data: unknown[], originalFunc: (...d: unknown[]) => void) => {
             const message = data.join(" ");
             const lines = message.split("\n");
             lines.forEach((line, index) => {
@@ -48,8 +48,8 @@ const Terminal = forwardRef<TerminalHandles, TerminalProps>(({ kernel }, ref) =>
             });
             originalFunc.apply(console, data);
         };
-        console.log = (...args: any[]) => writeToTerminal(args, originalLog);
-        console.error = (...args: any[]) => writeToTerminal(args, originalError);
+        console.log = (...args: unknown[]) => writeToTerminal(args, originalLog);
+        console.error = (...args: unknown[]) => writeToTerminal(args, originalError);
 
         return () => {
             console.log = originalLog;
@@ -94,5 +94,7 @@ const Terminal = forwardRef<TerminalHandles, TerminalProps>(({ kernel }, ref) =>
         />
     );
 });
+
+Terminal.displayName = "Terminal";
 
 export default Terminal;

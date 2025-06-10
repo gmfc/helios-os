@@ -9,8 +9,9 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     }
     try {
         await syscall('rename', argv[0], argv[1]);
-    } catch (e: any) {
-        await syscall('write', STDERR_FD, encode('mv: ' + e.message + '\n'));
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await syscall('write', STDERR_FD, encode('mv: ' + msg + '\n'));
         return 1;
     }
     return 0;

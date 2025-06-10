@@ -9,14 +9,20 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
                 const list: Array<{ id: number; pids: number[] }> = await syscall('jobs');
                 const job = list.find(j => j.id === id);
                 if (job) pids.push(...job.pids);
-            } catch {}
+            } catch {
+                // ignore errors when listing jobs
+            }
         } else {
             const pid = parseInt(arg, 10);
             if (!isNaN(pid)) pids.push(pid);
         }
     }
     for (const pid of pids) {
-        try { await syscall('kill', pid); } catch {}
+        try {
+            await syscall('kill', pid);
+        } catch {
+            // ignore errors when killing processes
+        }
     }
     return 0;
 }

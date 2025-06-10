@@ -22,9 +22,9 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
         const [name, ...args] = cmd.split(' ');
         try {
             const code = await readFile('/bin/' + name);
-            let m: any;
+            let m: { syscalls?: string[] } | undefined;
             try {
-                m = JSON.parse(await readFile('/bin/' + name + '.manifest.json'));
+                m = JSON.parse(await readFile('/bin/' + name + '.manifest.json')) as { syscalls?: string[] };
             } catch {}
             await syscall('spawn', code, { argv: args, syscalls: m ? m.syscalls : undefined });
         } catch {

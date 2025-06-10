@@ -1,6 +1,6 @@
 import type { SyscallDispatcher } from "../../types/syscalls";
 
-export async function main(syscall: SyscallDispatcher, _argv: string[]): Promise<number> {
+export async function main(syscall: SyscallDispatcher): Promise<number> {
     const STDERR_FD = 2;
     const encode = (s: string) => new TextEncoder().encode(s);
     const decode = (b: Uint8Array) => new TextDecoder().decode(b);
@@ -19,8 +19,10 @@ export async function main(syscall: SyscallDispatcher, _argv: string[]): Promise
 
     try {
         const code = await readFile('/bin/login');
-        let m: any;
-        try { m = JSON.parse(await readFile('/bin/login.manifest.json')); } catch {}
+        let m: { syscalls?: string[] } | undefined;
+        try {
+            m = JSON.parse(await readFile('/bin/login.manifest.json')) as { syscalls?: string[] };
+        } catch {}
         await syscall('spawn', code, { syscalls: m ? m.syscalls : undefined });
     } catch {
         await syscall('write', STDERR_FD, encode('init: failed to launch login\n'));

@@ -1,6 +1,6 @@
 import type { SyscallDispatcher } from "../../types/syscalls";
 
-export async function main(syscall: SyscallDispatcher, _argv: string[]): Promise<number> {
+export async function main(syscall: SyscallDispatcher): Promise<number> {
     const STDOUT_FD = 1;
     const encode = (s: string) => new TextEncoder().encode(s);
     const procs: Array<{ pid: number; cpuMs: number; memBytes: number; tty?: string; argv?: string[] }> = await syscall('ps');
