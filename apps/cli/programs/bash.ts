@@ -62,7 +62,7 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
         if (line === 'exit') break;
 
         if (line === 'jobs') {
-            let list: any[];
+            let list: Array<{ id: number; pids: number[]; command: string; status?: string }>;
             try {
                 list = await syscall('jobs');
             } catch {
@@ -118,7 +118,7 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
             for (const arg of args) {
                 if (arg.startsWith('%')) {
                     const id = parseInt(arg.slice(1), 10);
-                    let list: any[];
+                    let list: Array<{ id: number; pids: number[]; command: string; status?: string }>;
                     try {
                         list = await syscall('jobs');
                     } catch {
@@ -145,8 +145,10 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
         const [name, ...args] = cmd.split(' ');
         try {
             const code = await readFile('/bin/' + name);
-            let m: any;
-            try { m = JSON.parse(await readFile('/bin/' + name + '.manifest.json')); } catch {}
+            let m: { syscalls?: string[] } | undefined;
+            try {
+                m = JSON.parse(await readFile('/bin/' + name + '.manifest.json')) as { syscalls?: string[] };
+            } catch {}
             const pid = await syscall('spawn', code, { argv: args, syscalls: m ? m.syscalls : undefined, tty: ttyName, quotaMs, quotaMem });
             const job = { id: nextJob++, pids: [pid], command: cmd, state: 'Running' };
             jobs.push(job);

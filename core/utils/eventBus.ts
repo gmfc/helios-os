@@ -13,9 +13,9 @@ export interface EventMap {
     "system.reboot": {};
 }
 
-export type Handler<T = any> = (payload: T) => void;
+export type Handler<T = unknown> = (payload: T) => void;
 
-class EventBus<Events extends Record<string, any>> {
+class EventBus<Events extends Record<string, unknown>> {
     private handlers: { [K in keyof Events]?: Handler<Events[K]>[] } = {};
 
     on<K extends keyof Events>(event: K, handler: Handler<Events[K]>) {

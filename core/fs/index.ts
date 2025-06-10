@@ -136,9 +136,7 @@ export class InMemoryFileSystem implements AsyncFileSystem {
         this.createFile("/bin/bash", BASH_SOURCE, 0o755);
         this.createFile("/bin/bash.manifest.json", BASH_MANIFEST, 0o644);
 
-        const bundled = (globalThis as any).BUNDLED_DISK_IMAGES as
-            | Array<{ image: FileSystemSnapshot; path: string }>
-            | undefined;
+        const bundled = (globalThis as { BUNDLED_DISK_IMAGES?: Array<{ image: FileSystemSnapshot; path: string }> }).BUNDLED_DISK_IMAGES;
         if (bundled) {
             for (const m of bundled) {
                 try {
@@ -647,7 +645,7 @@ export class InMemoryFileSystem implements AsyncFileSystem {
 
     private serialize(): FileSystemSnapshot {
         // Custom replacer to convert Map and Uint8Array for JSON.stringify
-        const replacer = (_: string, value: any) => {
+        const replacer = (_: string, value: unknown) => {
             if (value instanceof Map) {
                 return {
                     dataType: "Map",
@@ -669,7 +667,7 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     }
 
     private deserialize(snapshot: FileSystemSnapshot): FileSystemSnapshot {
-        const reviver = (key: string, value: any) => {
+        const reviver = (key: string, value: unknown) => {
             if (typeof value === "object" && value !== null) {
                 if (value.dataType === "Map") {
                     return new Map(value.value);

@@ -9,8 +9,9 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     }
     try {
         await syscall('mkdir', argv[0], 0o755);
-    } catch (e: any) {
-        await syscall('write', STDERR_FD, encode('mkdir: ' + e.message + '\n'));
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await syscall('write', STDERR_FD, encode('mkdir: ' + msg + '\n'));
         return 1;
     }
     return 0;

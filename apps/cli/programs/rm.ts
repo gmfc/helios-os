@@ -9,8 +9,9 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     }
     try {
         await syscall('unlink', argv[0]);
-    } catch (e: any) {
-        await syscall('write', STDERR_FD, encode('rm: ' + e.message + '\n'));
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await syscall('write', STDERR_FD, encode('rm: ' + msg + '\n'));
         return 1;
     }
     return 0;

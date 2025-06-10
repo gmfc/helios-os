@@ -17,7 +17,7 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
             content += new TextDecoder().decode(chunk);
         }
         await syscall('close', fd);
-    } catch (e) {
+    } catch (e: unknown) {
         // new file - start empty
     }
     const escaped = content

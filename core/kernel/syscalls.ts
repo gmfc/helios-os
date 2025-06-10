@@ -11,17 +11,20 @@ import {
 } from "../fs/sqlite";
 import type { FileSystemNode, FileSystemSnapshot } from "../fs";
 import type { AsyncFileSystem } from "../fs/async";
-import type { Kernel } from "./index";
+import type { Kernel, KernelState, WindowOpts, Snapshot } from "./index";
 import type { ProcessControlBlock, FileDescriptor, ProcessID } from "./process";
-import type { WindowOpts, ServiceHandler, Snapshot } from "./index";
+import type { ServiceHandler } from "./index";
 
-export type SyscallDispatcher = (call: string, ...args: any[]) => Promise<any>;
+export type SyscallDispatcher = (
+    call: string,
+    ...args: unknown[]
+) => Promise<unknown>;
 
 export function createSyscallDispatcher(
     this: Kernel,
     pid: ProcessID,
 ): SyscallDispatcher {
-    return async (call: string, ...args: any[]): Promise<any> => {
+    return async (call: string, ...args: unknown[]): Promise<unknown> => {
         const pcb = this.state.processes.get(pid);
         if (!pcb) {
             throw new Error(`Invalid PID ${pid} for syscall`);
@@ -137,7 +140,7 @@ export async function syscall_open(
         const data = await this.state.fs.read(path);
         position = data.length;
     }
-    pcb.fds.set(fd, { path, position, flags, virtual: (node as any).virtual });
+    pcb.fds.set(fd, { path, position, flags, virtual: (node as { virtual?: boolean }).virtual });
     this.registerProcFd(pcb.pid, fd);
     return fd;
 }
@@ -209,10 +212,21 @@ export async function syscall_close(
     return 0;
 }
 
+export interface SpawnOptions {
+    argv?: string[];
+    uid?: number;
+    gid?: number;
+    quotaMs?: number;
+    quotaMs_total?: number;
+    quotaMem?: number;
+    tty?: string;
+    syscalls?: string[];
+}
+
 export async function syscall_spawn(
     this: Kernel,
     code: string,
-    opts: any = {},
+    opts: SpawnOptions = {},
 ): Promise<number> {
     const pid = this.createProcess();
     const pcb = this.state.processes.get(pid)!;
@@ -301,7 +315,7 @@ export function syscall_draw(
     const id = this.state.windows.length;
     const windows = this.state.windows.slice();
     windows.push({ html, opts });
-    this.state = { ...this.state, windows } as any;
+    this.state = { ...this.state, windows } as KernelState;
     const payload = {
         id,
         html: new TextDecoder().decode(html),

@@ -75,3 +75,5 @@ export const WindowManager = forwardRef<
         </div>
     );
 });
+
+WindowManager.displayName = "WindowManager";

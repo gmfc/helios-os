@@ -30,8 +30,9 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
         if (bytes.length > 0) {
             await syscall('write', outputFd, bytes);
         }
-    } catch (e: any) {
-        await syscall('write', STDERR_FD, encode('echo: ' + e.message + '\n'));
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await syscall('write', STDERR_FD, encode('echo: ' + msg + '\n'));
         return 1;
     } finally {
         if (outputFd !== STDOUT_FD) {

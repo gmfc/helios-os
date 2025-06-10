@@ -20,9 +20,21 @@ import { invoke } from "@tauri-apps/api/tauri";
 import { listen } from "@tauri-apps/api/event";
 import { eventBus } from "../utils/eventBus";
 import { NIC } from "../net/nic";
-import { TCP } from "../net/tcp";
-import { UDP } from "../net/udp";
+import { TCP, TcpHandler } from "../net/tcp";
+import { UDP, UdpHandler } from "../net/udp";
 import { BASH_SOURCE } from "../fs/bin";
+
+interface TcpInternal {
+    listeners: Map<number, TcpHandler>;
+    sockets: Map<number, { ip: string; port: number }>;
+    nextSocket: number;
+}
+
+interface UdpInternal {
+    listeners: Map<number, UdpHandler>;
+    sockets: Map<number, { ip: string; port: number }>;
+    nextSocket: number;
+}
 import { startHttpd, startSshd, startPingService } from "../services";
 import {
     ProcessID,
@@ -92,14 +104,14 @@ export interface WindowOpts {
 }
 
 export interface Snapshot {
-    fs?: any;
-    processes: any;
+    fs?: unknown;
+    processes: unknown;
     windows: Array<{ html: Uint8Array; opts: WindowOpts }>;
     nextPid: number;
-    nics: any;
-    tcp: any;
-    udp: any;
-    services: any;
+    nics: unknown;
+    tcp: unknown;
+    udp: unknown;
+    services: unknown;
     initPid: number | null;
 }
 
@@ -122,7 +134,7 @@ export class Kernel {
     private readyQueue: ProcessControlBlock[];
     private running = false;
     private initPid: ProcessID | null = null;
-    private pendingNics: Array<any> | null = null;
+    private pendingNics: Array<NIC> | null = null;
     private networkingStarted = false;
     private jobs: Map<
         number,
@@ -194,8 +206,8 @@ export class Kernel {
             },
         ];
         if (typeof window !== "undefined") {
-            listen("syscall", async (event: any) => {
-                const { id, pid, call, args } = event.payload as any;
+            listen<{ id: number; pid: number; call: string; args: unknown[] }>("syscall", async (event) => {
+                const { id, pid, call, args } = event.payload;
                 const disp = dispatcherMap.get(pid);
                 if (!disp) return;
                 const result = await disp(call, ...args);
@@ -219,44 +231,43 @@ export class Kernel {
     }
 
     public static async restore(snapshot: Snapshot): Promise<Kernel> {
-        const reviver = (_: string, value: any) => {
-            if (value && typeof value === "object") {
-                if (value.dataType === "Map") {
-                    return new Map(value.value);
+        const reviver = (_: string, value: unknown) => {
+            if (value && typeof value === "object" && "dataType" in value) {
+                const v = value as Record<string, unknown>;
+                if (v.dataType === "Map") {
+                    return new Map(v.value as Iterable<[unknown, unknown]>);
                 }
-                if (value.dataType === "Set") {
-                    return new Set<string>(value.value);
+                if (v.dataType === "Set") {
+                    return new Set<string>(v.value as string[]);
                 }
-                if (value.dataType === "Uint8Array") {
+                if (v.dataType === "Uint8Array") {
+                    const str = v.value as string;
                     if (typeof Buffer !== "undefined") {
-                        return new Uint8Array(
-                            Buffer.from(value.value, "base64"),
-                        );
+                        return new Uint8Array(Buffer.from(str, "base64"));
                     }
-                    const bin = atob(value.value);
+                    const bin = atob(str);
                     const arr = new Uint8Array(bin.length);
-                    for (let i = 0; i < bin.length; i++)
-                        arr[i] = bin.charCodeAt(i);
+                    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
                     return arr;
                 }
-                if (value.dataType === "NIC") {
-                    const nic = new NIC(value.id, value.mac, value.ip);
-                    nic.rx = value.rx ?? [];
-                    nic.tx = value.tx ?? [];
+                if (v.dataType === "NIC") {
+                    const nic = new NIC(String(v.id), String(v.mac), v.ip as string | undefined);
+                    nic.rx = (v.rx as unknown[]) ?? [];
+                    nic.tx = (v.tx as unknown[]) ?? [];
                     return nic;
                 }
-                if (value.dataType === "TCP") {
+                if (v.dataType === "TCP") {
                     const tcp = new TCP();
-                    (tcp as any).listeners = new Map(value.listeners ?? []);
-                    (tcp as any).sockets = new Map(value.sockets ?? []);
-                    (tcp as any).nextSocket = value.nextSocket ?? 1;
+                    (tcp as unknown as TcpInternal).listeners = new Map(v.listeners as Iterable<[number, TcpHandler]> ?? []);
+                    (tcp as unknown as TcpInternal).sockets = new Map(v.sockets as Iterable<[number, { ip: string; port: number }]> ?? []);
+                    (tcp as unknown as TcpInternal).nextSocket = (v.nextSocket as number) ?? 1;
                     return tcp;
                 }
-                if (value.dataType === "UDP") {
+                if (v.dataType === "UDP") {
                     const udp = new UDP();
-                    (udp as any).listeners = new Map(value.listeners ?? []);
-                    (udp as any).sockets = new Map(value.sockets ?? []);
-                    (udp as any).nextSocket = value.nextSocket ?? 1;
+                    (udp as unknown as UdpInternal).listeners = new Map(v.listeners as Iterable<[number, UdpHandler]> ?? []);
+                    (udp as unknown as UdpInternal).sockets = new Map(v.sockets as Iterable<[number, { ip: string; port: number }]> ?? []);
+                    (udp as unknown as UdpInternal).nextSocket = (v.nextSocket as number) ?? 1;
                     return udp;
                 }
             }
@@ -300,8 +311,8 @@ export class Kernel {
         }
 
         if (typeof window !== "undefined") {
-            listen("syscall", async (event: any) => {
-                const { id, pid, call, args } = event.payload as any;
+            listen<{ id: number; pid: number; call: string; args: unknown[] }>("syscall", async (event) => {
+                const { id, pid, call, args } = event.payload;
                 const disp = dispatcherMap.get(pid);
                 if (!disp) return;
                 const result = await disp(call, ...args);
@@ -403,7 +414,7 @@ export class Kernel {
     }
 
     public snapshot(): Snapshot {
-        const replacer = (_: string, value: any) => {
+        const replacer = (_: string, value: unknown) => {
             if (value instanceof Map) {
                 return { dataType: "Map", value: Array.from(value.entries()) };
             }
@@ -428,26 +439,31 @@ export class Kernel {
                 };
             }
             if (value instanceof TCP) {
+                const tcpVal = value as unknown as TcpInternal;
                 return {
                     dataType: "TCP",
-                    listeners: Array.from((value as any).listeners.entries()),
-                    sockets: Array.from((value as any).sockets.entries()),
-                    nextSocket: (value as any).nextSocket,
+                    listeners: Array.from(tcpVal.listeners.entries()),
+                    sockets: Array.from(tcpVal.sockets.entries()),
+                    nextSocket: tcpVal.nextSocket,
                 };
             }
             if (value instanceof UDP) {
+                const udpVal = value as unknown as UdpInternal;
                 return {
                     dataType: "UDP",
-                    listeners: Array.from((value as any).listeners.entries()),
-                    sockets: Array.from((value as any).sockets.entries()),
-                    nextSocket: (value as any).nextSocket,
+                    listeners: Array.from(udpVal.listeners.entries()),
+                    sockets: Array.from(udpVal.sockets.entries()),
+                    nextSocket: udpVal.nextSocket,
                 };
             }
             return value;
         };
 
-        const fsSnapshot = (this.state.fs as any).getSnapshot
-            ? (this.state.fs as any).getSnapshot()
+        const fsWithSnapshot = this.state.fs as unknown as {
+            getSnapshot?: () => FileSystemSnapshot;
+        };
+        const fsSnapshot = fsWithSnapshot.getSnapshot
+            ? fsWithSnapshot.getSnapshot()
             : undefined;
         const state: Snapshot = {
             fs: fsSnapshot,
@@ -484,9 +500,10 @@ export class Kernel {
 
     public async stop(): Promise<void> {
         persistKernelSnapshot(this.snapshot());
-        if ((this.state.fs as any).close) {
+        const fsClosable = this.state.fs as unknown as { close?: () => Promise<void> };
+        if (fsClosable.close) {
             try {
-                await (this.state.fs as any).close();
+                await fsClosable.close();
             } catch (e) {
                 console.error(e);
             }

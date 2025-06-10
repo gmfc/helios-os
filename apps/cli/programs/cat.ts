@@ -21,8 +21,9 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
             }
             await syscall("write", STDOUT_FD, data);
         }
-    } catch (e: any) {
-        await syscall("write", STDERR_FD, encode("cat: " + path + ": " + e.message + "\n"));
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await syscall("write", STDERR_FD, encode("cat: " + path + ": " + msg + "\n"));
         return 1;
     } finally {
         if (fd >= 0) {
