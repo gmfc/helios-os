@@ -1,10 +1,37 @@
 import type { SyscallDispatcher } from "../../types/syscalls";
 
+const HIST_PATH = '/bash_history';
+
+
 export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<number> {
     const STDOUT_FD = 1;
     const STDERR_FD = 2;
     const encode = (s: string) => new TextEncoder().encode(s);
     const decode = (b: Uint8Array) => new TextDecoder().decode(b);
+
+    let history: string[] = [];
+
+    async function loadHistory() {
+        try {
+            const fd = await syscall('open', HIST_PATH, 'r');
+            let data = '';
+            while (true) {
+                const chunk = await syscall('read', fd, 1024);
+                if (chunk.length === 0) break;
+                data += decode(chunk);
+            }
+            await syscall('close', fd);
+            history = data.split('\n').filter(l => l);
+        } catch {}
+    }
+
+    async function appendHistory(cmd: string) {
+        try {
+            const fd = await syscall('open', HIST_PATH, 'a');
+            await syscall('write', fd, encode(cmd + '\n'));
+            await syscall('close', fd);
+        } catch {}
+    }
 
     async function readFile(path: string): Promise<string> {
         const fd = await syscall('open', path, 'r');
@@ -18,13 +45,65 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
         return out;
     }
 
+    async function complete(prefix: string): Promise<string[]> {
+        try {
+            const ents: Array<{ path: string }> = await syscall('readdir', '/bin');
+            return ents
+                .map(e => e.path.split('/').pop() as string)
+                .filter(n => n.startsWith(prefix));
+        } catch {
+            return [];
+        }
+    }
+
     async function readLine(fd: number): Promise<string> {
         let line = '';
+        let histIndex = history.length;
+        const redraw = async () => {
+            await syscall('write', STDOUT_FD, encode('\r\x1b[K$ ' + line));
+        };
         while (true) {
             const chunk = await syscall('read', fd, 1);
-            if (chunk.length === 0) break;
+            if (chunk.length === 0) continue;
             const ch = decode(chunk);
-            if (ch === '\n') break;
+            if (ch === '\n') {
+                await syscall('write', STDOUT_FD, encode('\n'));
+                break;
+            }
+            if (ch === '\u007f') {
+                if (line.length > 0) {
+                    line = line.slice(0, -1);
+                    await redraw();
+                }
+                continue;
+            }
+            if (ch === '\t') {
+                const words = line.split(/\s+/);
+                const prefix = words[words.length - 1];
+                const matches = await complete(prefix);
+                if (matches.length === 1) {
+                    words[words.length - 1] = matches[0];
+                    line = words.join(' ');
+                    await redraw();
+                } else if (matches.length > 1) {
+                    await syscall('write', STDOUT_FD, encode('\n' + matches.join(' ') + '\n'));
+                    await redraw();
+                }
+                continue;
+            }
+            if (ch === '\x1b') {
+                const seq = decode(await syscall('read', fd, 2));
+                if (seq === '[A') {
+                    if (histIndex > 0) histIndex--;
+                    line = history[histIndex] ?? '';
+                    await redraw();
+                } else if (seq === '[B') {
+                    if (histIndex < history.length) histIndex++;
+                    line = histIndex < history.length ? history[histIndex] : '';
+                    await redraw();
+                }
+                continue;
+            }
             line += ch;
         }
         return line;
@@ -47,6 +126,7 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
         await syscall('write', STDERR_FD, encode('bash: unable to open tty\n'));
         return 1;
     }
+    await loadHistory();
 
     const initLimits = await syscall('set_quota');
     let quotaMs = initLimits.quotaMs;
@@ -59,6 +139,8 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
         await syscall('write', STDOUT_FD, encode('$ '));
         const line = (await readLine(tty)).trim();
         if (!line) continue;
+        history.push(line);
+        await appendHistory(line);
         if (line === 'exit') break;
 
         if (line === 'jobs') {
