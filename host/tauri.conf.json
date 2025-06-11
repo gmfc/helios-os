@@ -1,9 +1,10 @@
 {
-  "$schema": "../../node_modules/@tauri-apps/cli/schema.json",
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "build": {
     "beforeDevCommand": "pnpm --dir .. dev:ui",
-    "devPath": "http://localhost:1420/ui/index.html",
-    "distDir": "../dist",
+    "beforeBuildCommand": "pnpm --dir .. build",
+    "devUrl": "http://localhost:1420/ui/index.html",
+    "frontendDist": "../dist",
     "withGlobalTauri": true
   },
   "package": {
