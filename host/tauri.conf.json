@@ -1,39 +1,38 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "helios-os",
+  "version": "0.1.0",
+  "identifier": "com.helios.dev",
   "build": {
-    "beforeDevCommand": "pnpm --dir .. dev:ui",
-    "beforeBuildCommand": "pnpm --dir .. build",
+    "beforeDevCommand": "pnpm dev:ui",
+    "beforeBuildCommand": "pnpm build",
     "devUrl": "http://localhost:1420/ui/index.html",
     "frontendDist": "../dist",
-    "withGlobalTauri": true
+    "runner": "pnpm"
   },
-  "package": {
-    "productName": "helios-os",
-    "version": "0.1.0"
-  },
-  "tauri": {
-    "bundle": {
-      "active": true,
-      "identifier": "com.helios.dev",
-      "icon": [
-        "../icons/32x32.png",
-        "../icons/128x128.png",
-        "../icons/128x128@2x.png",
-        "../icons/icon.icns",
-        "../icons/icon.ico"
-      ]
-    },
-    "security": {
-      "csp": null
-    },
+  "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
-        "fullscreen": false,
+        "title": "Helios OS",
+        "width": 800,
         "height": 600,
         "resizable": true,
-        "title": "Helios OS",
-        "width": 800
+        "fullscreen": false
       }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "../icons/32x32.png",
+      "../icons/128x128.png",
+      "../icons/128x128@2x.png",
+      "../icons/icon.icns",
+      "../icons/icon.ico"
     ]
   }
-} 
+}
