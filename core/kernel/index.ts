@@ -519,3 +519,65 @@ export class Kernel {
 
 export type { ProcessID, FileDescriptor, ProcessControlBlock } from "./process";
 export type { SyscallDispatcher } from "./syscalls";
+
+declare const vitest: unknown | undefined;
+export const kernelTest = (typeof vitest !== "undefined" || process.env.VITEST)
+    ? {
+          createKernel: (fs: AsyncFileSystem) => {
+              const k = new Kernel(fs);
+              (k as any).createProcess();
+              return k;
+          },
+          getState: (k: Kernel) => (k as any).state as KernelState,
+          setInitPid: (k: Kernel, pid: ProcessID) => {
+              (k as any).initPid = pid;
+          },
+          setRunProcess: (
+              k: Kernel,
+              fn: (pcb: ProcessControlBlock) => Promise<void>,
+          ) => {
+              (k as any).runProcess = fn;
+          },
+          createProcess: (k: Kernel) => (k as any).createProcess(),
+          runProcess: (k: Kernel, pcb: ProcessControlBlock) =>
+              (k as any).runProcess(pcb),
+          syscall_spawn: (k: Kernel, code: string, opts?: SpawnOpts) =>
+              syscall_spawn.call(k, code, opts),
+          syscall_mount: (
+              k: Kernel,
+              snap: FileSystemSnapshot,
+              path: string,
+          ) => syscall_mount.call(k, snap, path),
+          syscall_unmount: (k: Kernel, path: string) =>
+              syscall_unmount.call(k, path),
+          syscall_open: (
+              k: Kernel,
+              pcb: ProcessControlBlock,
+              path: string,
+              flags: string,
+          ) => syscall_open.call(k, pcb, path, flags),
+          syscall_read: (
+              k: Kernel,
+              pcb: ProcessControlBlock,
+              fd: FileDescriptor,
+              len: number,
+          ) => syscall_read.call(k, pcb, fd, len),
+          syscall_draw: (
+              k: Kernel,
+              html: Uint8Array,
+              opts: WindowOpts,
+          ) => syscall_draw.call(k, html, opts),
+          syscall_readdir: (k: Kernel, path: string) =>
+              syscall_readdir.call(k, path),
+          syscall_kill: (k: Kernel, pid: number, sig?: number) =>
+              syscall_kill.call(k, pid, sig),
+          syscall_set_quota: (
+              k: Kernel,
+              pcb: ProcessControlBlock,
+              ms?: number,
+              mem?: number,
+          ) => syscall_set_quota.call(k, pcb, ms, mem),
+          syscall_ps: (k: Kernel) => syscall_ps.call(k),
+          syscall_jobs: (k: Kernel) => syscall_jobs.call(k),
+      }
+    : undefined;
