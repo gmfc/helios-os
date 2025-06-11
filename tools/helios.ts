@@ -20,6 +20,15 @@ export async function makepkg(dir: string) {
     console.log(`Package created: ${outName}`);
 }
 
+export async function publish(pkgPath: string) {
+    const workshopDir = path.join("workshop");
+    await fs.mkdir(workshopDir, { recursive: true });
+    const dest = path.join(workshopDir, path.basename(pkgPath));
+    await fs.copyFile(pkgPath, dest);
+    console.log(`Package copied to ${dest}`);
+    console.log("Remote repository upload not yet implemented.");
+}
+
 async function writeBuildScript(
     dir: string,
     entry: string,
@@ -103,7 +112,7 @@ export async function main() {
     const [command, sub, arg] = process.argv.slice(2);
     if (!command) {
         console.log(
-            "Usage: helios <snap|makepkg|new|update-snapshot> [args]\n" +
+            "Usage: helios <snap|makepkg|publish|new|update-snapshot> [args]\n" +
                 "       helios new <gui-app|cli-app> <name>",
         );
         process.exit(1);
@@ -116,6 +125,10 @@ export async function main() {
         case "makepkg":
             if (!sub) throw new Error("makepkg requires directory");
             await makepkg(sub);
+            break;
+        case "publish":
+            if (!sub) throw new Error("publish requires package path");
+            await publish(sub);
             break;
         case "new":
             if (!arg || (sub !== "gui-app" && sub !== "cli-app")) {
