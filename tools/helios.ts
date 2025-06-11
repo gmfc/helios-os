@@ -20,20 +20,53 @@ export async function makepkg(dir: string) {
     console.log(`Package created: ${outName}`);
 }
 
+export async function scaffoldGuiApp(name: string) {
+    const dir = path.join("apps", "examples", name);
+    await fs.mkdir(dir, { recursive: true });
+    const mainPath = path.join(dir, "index.tsx");
+    const code = `import type { SyscallDispatcher } from '../../types/syscalls';
+
+export async function main(syscall: SyscallDispatcher): Promise<number> {
+    const html = new TextEncoder().encode('<h1>${name} works!</h1>');
+    await syscall('draw', html, { title: '${name}' });
+    return 0;
+}
+`;
+    await fs.writeFile(mainPath, code);
+    console.log(`GUI app created at ${dir}`);
+}
+
+export async function updateSnapshot(outPath = "snapshot.json") {
+    const kernel = await Kernel.create();
+    const snapData = kernel.snapshot();
+    await fs.writeFile(outPath, JSON.stringify(snapData, null, 2));
+    console.log(`Snapshot updated: ${outPath}`);
+}
+
 export async function main() {
-    const [command, arg] = process.argv.slice(2);
+    const [command, sub, arg] = process.argv.slice(2);
     if (!command) {
-        console.log("Usage: helios <snap|makepkg> <path>");
+        console.log("Usage: helios <snap|makepkg|new|update-snapshot> [args]");
         process.exit(1);
     }
     switch (command) {
         case "snap":
-            if (!arg) throw new Error("snap requires output path");
-            await snap(arg);
+            if (!sub) throw new Error("snap requires output path");
+            await snap(sub);
             break;
         case "makepkg":
-            if (!arg) throw new Error("makepkg requires directory");
-            await makepkg(arg);
+            if (!sub) throw new Error("makepkg requires directory");
+            await makepkg(sub);
+            break;
+        case "new":
+            if (sub !== "gui-app" || !arg) {
+                console.log("Usage: helios new gui-app <name>");
+                process.exit(1);
+            }
+            await scaffoldGuiApp(arg);
+            break;
+        case "update-snapshot":
+            await updateSnapshot(sub ?? "snapshot.json");
             break;
         default:
             console.error(`Unknown command: ${command}`);

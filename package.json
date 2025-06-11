@@ -12,6 +12,7 @@
     "build": "pnpm build:apps && tsx tools/build.ts --prod",
     "build:release": "pnpm build && cd host && tauri build",
     "helios": "tsx tools/helios.ts",
+    "update-snapshot": "tsx tools/helios.ts update-snapshot",
     "test": "vitest run",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint -c .eslintrc.cjs \"**/*.{ts,tsx}\"",
     "precommit": "pnpm lint && pnpm test"
