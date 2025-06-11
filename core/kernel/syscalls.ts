@@ -122,6 +122,12 @@ export function createSyscallDispatcher(
                 return this.syscall_ps();
             case "jobs":
                 return this.syscall_jobs();
+            case "window_owners":
+                return this.syscall_window_owners();
+            case "list_services":
+                return this.syscall_list_services();
+            case "stop_service":
+                return this.syscall_stop_service(args[0]);
             case "reboot":
                 return this.reboot();
             default:
@@ -559,4 +565,20 @@ export function syscall_ps(this: Kernel) {
 /** List background jobs tracked by the shell. */
 export function syscall_jobs(this: Kernel) {
     return Array.from(this.jobs.values());
+}
+
+/** Return window owner mapping entries. */
+export function syscall_window_owners(this: Kernel) {
+    return Array.from((this as any).windowOwners?.entries() || []);
+}
+
+/** List registered services. */
+export function syscall_list_services(this: Kernel) {
+    return Array.from(this.state.services.entries());
+}
+
+/** Stop a service by name. */
+export function syscall_stop_service(this: Kernel, name: string) {
+    this.stopService(name);
+    return 0;
 }

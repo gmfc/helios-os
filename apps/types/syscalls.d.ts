@@ -27,6 +27,9 @@ export interface SyscallDispatcher {
     (call: "load_snapshot_named", name: string): Promise<number>;
     (call: "ps"): Promise<Array<{ pid: number; argv?: string[]; exited?: boolean; cpuMs: number; memBytes: number; tty?: string }>>;
     (call: "jobs"): Promise<Array<{ id: number; pids: ProcessID[]; status: string }>>;
+    (call: "window_owners"): Promise<Array<[number, ProcessID]>>;
+    (call: "list_services"): Promise<Array<[string, { port: number; proto: string }]>>;
+    (call: "stop_service", name: string): Promise<number>;
     (call: "reboot"): Promise<number>;
     (call: string, ...args: any[]): Promise<any>;
 }

@@ -112,6 +112,48 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
             await syscall('write', STDERR_FD, encode('apt: bad manifest\n'));
             return 1;
         }
+        let owners: Array<[number, number]> = [];
+        try {
+            owners = await syscall('window_owners');
+        } catch {}
+        const toKill: number[] = [];
+        for (const [, pid] of owners) {
+            try {
+                const fd = await syscall('open', `/proc/${pid}/status`, 'r');
+                const data: Uint8Array[] = [];
+                while (true) {
+                    const chunk: Uint8Array = await syscall('read', fd, 256);
+                    if (chunk.length === 0) break;
+                    data.push(chunk);
+                }
+                await syscall('close', fd);
+                let len2 = 0;
+                for (const c of data) len2 += c.length;
+                const buf = new Uint8Array(len2);
+                let off2 = 0;
+                for (const c of data) { buf.set(c, off2); off2 += c.length; }
+                const text = new TextDecoder().decode(buf);
+                if (text.includes(`cmd:\t${name}`)) toKill.push(pid);
+            } catch {}
+        }
+        for (const pid of toKill) {
+            await syscall('kill', pid, 9);
+            try {
+                const fds = await syscall('readdir', `/proc/${pid}/fd`);
+                if (fds.length > 0) {
+                    await syscall('write', STDERR_FD, encode(`apt: warning process ${pid} still has open fds\n`));
+                }
+            } catch {}
+        }
+        let services: Array<[string, { port: number; proto: string }]> = [];
+        try {
+            services = await syscall('list_services');
+        } catch {}
+        for (const [svc] of services) {
+            if (svc.startsWith(name + ':') || svc === name) {
+                try { await syscall('stop_service', svc); } catch {}
+            }
+        }
         for (const f of manifest.files) {
             try { await syscall('unlink', f); } catch {}
         }
