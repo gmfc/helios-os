@@ -9,6 +9,21 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     const encode = (s: string) => new TextEncoder().encode(s);
     const decode = (b: Uint8Array) => new TextDecoder().decode(b);
 
+    let cwd = '/';
+
+    const resolve = (p: string): string => {
+        if (!p) return cwd;
+        if (p.startsWith('/')) p = p;
+        else p = (cwd.endsWith('/') ? cwd : cwd + '/') + p;
+        const parts = p.split('/').filter(s => s && s !== '.');
+        const stack: string[] = [];
+        for (const part of parts) {
+            if (part === '..') stack.pop();
+            else stack.push(part);
+        }
+        return '/' + stack.join('/');
+    };
+
     let history: string[] = [];
 
     async function loadHistory() {
@@ -143,6 +158,23 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
         await appendHistory(line);
         if (line === 'exit') break;
 
+        if (line === 'pwd') {
+            await syscall('write', STDOUT_FD, encode(cwd + '\n'));
+            continue;
+        }
+
+        if (line.startsWith('cd ')) {
+            const target = line.slice(3).trim() || '/';
+            const full = resolve(target);
+            const rc = await syscall('chdir', target);
+            if (rc === 0) {
+                cwd = full;
+            } else {
+                await syscall('write', STDERR_FD, encode('bash: cd: ' + target + ': No such file or directory\n'));
+            }
+            continue;
+        }
+
         if (line === 'jobs') {
             let list: Array<{ id: number; pids: number[]; command: string; status?: string }>;
             try {
@@ -231,7 +263,7 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
             try {
                 m = JSON.parse(await readFile('/bin/' + name + '.manifest.json')) as { syscalls?: string[] };
             } catch {}
-            const pid = await syscall('spawn', code, { argv: args, syscalls: m ? m.syscalls : undefined, tty: ttyName, quotaMs, quotaMem });
+            const pid = await syscall('spawn', code, { argv: args, syscalls: m ? m.syscalls : undefined, tty: ttyName, quotaMs, quotaMem, cwd });
             const job = { id: nextJob++, pids: [pid], command: cmd, state: 'Running' };
             jobs.push(job);
             if (!bg) {

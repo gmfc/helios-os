@@ -17,6 +17,20 @@ import type { ServiceHandler } from "./index";
 import * as fs from "node:fs/promises";
 import pathModule from "node:path";
 
+function resolvePath(pcb: ProcessControlBlock, p: string): string {
+    if (!p) return pcb.cwd;
+    if (p.startsWith("/")) return p;
+    const base = pcb.cwd.endsWith("/") ? pcb.cwd : pcb.cwd + "/";
+    const combined = base + p;
+    const parts = combined.split("/").filter((x) => x && x !== ".");
+    const stack: string[] = [];
+    for (const part of parts) {
+        if (part === "..") stack.pop();
+        else stack.push(part);
+    }
+    return "/" + stack.join("/");
+}
+
 export type SyscallDispatcher = (
     call: string,
     ...args: unknown[]
@@ -50,8 +64,12 @@ export function createSyscallDispatcher(
                 return await this.syscall_write(pcb, args[0], args[1]);
             case "close":
                 return await this.syscall_close(pcb, args[0]);
-            case "spawn":
-                return this.syscall_spawn(args[0], args[1]);
+            case "spawn": {
+                const pidNew = await this.syscall_spawn(args[0], args[1]);
+                const child = this.state.processes.get(pidNew);
+                if (child) child.cwd = (args[1]?.cwd as string | undefined) ?? pcb.cwd;
+                return pidNew;
+            }
             case "listen":
                 return this.syscall_listen(args[0], args[1], args[2]);
             case "connect":
@@ -63,17 +81,19 @@ export function createSyscallDispatcher(
             case "draw":
                 return this.syscall_draw(args[0], args[1]);
             case "mkdir":
-                return await this.syscall_mkdir(args[0], args[1]);
+                return await this.syscall_mkdir(pcb, args[0], args[1]);
             case "readdir":
-                return await this.syscall_readdir(args[0]);
+                return await this.syscall_readdir(pcb, args[0]);
             case "unlink":
-                return await this.syscall_unlink(args[0]);
+                return await this.syscall_unlink(pcb, args[0]);
             case "rename":
-                return await this.syscall_rename(args[0], args[1]);
+                return await this.syscall_rename(pcb, args[0], args[1]);
             case "mount":
-                return await this.syscall_mount(args[0], args[1]);
+                return await this.syscall_mount(args[0], resolvePath(pcb, args[1]));
             case "unmount":
-                return await this.syscall_unmount(args[0]);
+                return await this.syscall_unmount(resolvePath(pcb, args[0]));
+            case "chdir":
+                return this.syscall_chdir(pcb, args[0]);
             case "set_quota":
                 return this.syscall_set_quota(pcb, args[0], args[1]);
             case "kill":
@@ -116,10 +136,11 @@ export async function syscall_open(
     path: string,
     flags: string,
 ): Promise<FileDescriptor> {
-    const node = await this.state.fs.open(path, flags);
+    const fullPath = resolvePath(pcb, path);
+    const node = await this.state.fs.open(fullPath, flags);
     if (node.kind === "dir") {
         throw new Error(
-            `EISDIR: illegal operation on a directory, open '${path}'`,
+            `EISDIR: illegal operation on a directory, open '${fullPath}'`,
         );
     }
 
@@ -148,10 +169,10 @@ export async function syscall_open(
     const fd = pcb.nextFd++;
     let position = 0;
     if (flags.includes("a")) {
-        const data = await this.state.fs.read(path);
+        const data = await this.state.fs.read(fullPath);
         position = data.length;
     }
-    pcb.fds.set(fd, { path, position, flags, virtual: (node as { virtual?: boolean }).virtual });
+    pcb.fds.set(fd, { path: fullPath, position, flags, virtual: (node as { virtual?: boolean }).virtual });
     this.registerProcFd(pcb.pid, fd);
     return fd;
 }
@@ -236,6 +257,7 @@ export interface SpawnOptions {
     argv?: string[];
     uid?: number;
     gid?: number;
+    cwd?: string;
     quotaMs?: number;
     quotaMs_total?: number;
     quotaMem?: number;
@@ -260,6 +282,7 @@ export async function syscall_spawn(
     if (opts.quotaMs_total !== undefined)
         pcb.quotaMs_total = opts.quotaMs_total;
     if (opts.quotaMem !== undefined) pcb.quotaMem = opts.quotaMem;
+    pcb.cwd = opts.cwd ?? pcb.cwd ?? "/";
     pcb.cpuMs = 0;
     pcb.memBytes = 0;
     pcb.isolateId = pid;
@@ -370,37 +393,58 @@ export function syscall_draw(
 /** Create a new directory with the given permissions. */
 export async function syscall_mkdir(
     this: Kernel,
+    pcb: ProcessControlBlock,
     path: string,
     perms: number,
 ): Promise<number> {
-    await this.state.fs.mkdir(path, perms);
+    const fullPath = resolvePath(pcb, path);
+    await this.state.fs.mkdir(fullPath, perms);
     return 0;
 }
 
 /** List files in a directory. */
 export async function syscall_readdir(
     this: Kernel,
+    pcb: ProcessControlBlock,
     path: string,
 ): Promise<FileSystemNode[]> {
-    return this.state.fs.readdir(path);
+    return this.state.fs.readdir(resolvePath(pcb, path));
 }
 
 /** Remove a file or directory. */
 export async function syscall_unlink(
     this: Kernel,
+    pcb: ProcessControlBlock,
     path: string,
 ): Promise<number> {
-    await this.state.fs.unlink(path);
+    await this.state.fs.unlink(resolvePath(pcb, path));
     return 0;
 }
 
 /** Rename a file or directory. */
 export async function syscall_rename(
     this: Kernel,
+    pcb: ProcessControlBlock,
     oldPath: string,
     newPath: string,
 ): Promise<number> {
-    await this.state.fs.rename(oldPath, newPath);
+    await this.state.fs.rename(resolvePath(pcb, oldPath), resolvePath(pcb, newPath));
+    return 0;
+}
+
+/** Change the current working directory. */
+export async function syscall_chdir(
+    this: Kernel,
+    pcb: ProcessControlBlock,
+    path: string,
+): Promise<number> {
+    const full = resolvePath(pcb, path);
+    try {
+        await this.state.fs.readdir(full);
+    } catch {
+        return -1;
+    }
+    pcb.cwd = full;
     return 0;
 }
 
