@@ -141,6 +141,7 @@ export class Kernel {
         { id: number; pids: number[]; command: string; status: string }
     > = new Map();
     private nextJob = 1;
+    private mountedVolumes: Map<string, string> = new Map();
     private createProcess = createProcess;
     private cleanupProcess = cleanupProcess;
     private ensureProcRoot = ensureProcRoot;
@@ -554,9 +555,9 @@ export const kernelTest = (typeof vitest !== "undefined" || process.env.VITEST)
               syscall_spawn.call(k, code, opts),
           syscall_mount: (
               k: Kernel,
-              snap: FileSystemSnapshot,
+              file: string,
               path: string,
-          ) => syscall_mount.call(k, snap, path),
+          ) => syscall_mount.call(k, file, path),
           syscall_unmount: (k: Kernel, path: string) =>
               syscall_unmount.call(k, path),
           syscall_open: (

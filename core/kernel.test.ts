@@ -3,6 +3,9 @@ import { describe, it, beforeEach, afterEach } from "vitest";
 import { createHash } from "node:crypto";
 import { Kernel, kernelTest } from "./kernel";
 import { InMemoryFileSystem } from "./fs";
+import * as fs from "fs/promises";
+import path from "path";
+import os from "os";
 
 describe("Kernel", () => {
     let kernel: Kernel;
@@ -32,10 +35,13 @@ describe("Kernel", () => {
         const img = new InMemoryFileSystem();
         img.createFile("/foo.txt", "bar", 0o644);
         const snap = img.getSnapshot();
-        await kernelTest!.syscall_mount(kernel, snap, "/mnt");
+        const tmp = path.join(os.tmpdir(), `test-${Date.now()}.vfs`);
+        await fs.writeFile(tmp, JSON.stringify(snap));
+        await kernelTest!.syscall_mount(kernel, tmp, "/mnt");
         assert(kernelTest!.getState(kernel).fs.getNode("/mnt/foo.txt"), "file mounted");
         await kernelTest!.syscall_unmount(kernel, "/mnt");
         assert(!kernelTest!.getState(kernel).fs.getNode("/mnt/foo.txt"), "file unmounted");
+        await fs.unlink(tmp);
     });
 
     it("opening directory throws EISDIR", async () => {
