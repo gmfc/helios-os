@@ -9,6 +9,7 @@ import { XTerm } from "@pablo-lion/xterm-react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Kernel } from "../../core/kernel";
 import { TERMINAL_THEME } from "../constants";
+import { copyText, pasteText } from "../hooks/clipboard";
 
 export interface TerminalHandles {
     fit: () => void;
@@ -35,6 +36,28 @@ const Terminal = forwardRef<TerminalHandles, TerminalProps>(({ kernel }, ref) =>
         term.writeln("Welcome to Helios-OS Terminal");
         term.write("$ ");
 
+        const selectionListener = term.onSelectionChange(() => {
+            const sel = term.getSelection();
+            if (sel) copyText(sel);
+        });
+
+        const contextHandler = async (e: MouseEvent) => {
+            e.preventDefault();
+            const text = await pasteText();
+            if (text) term.paste(text);
+        };
+        term.element?.addEventListener("contextmenu", contextHandler);
+
+        term.attachCustomKeyEventHandler((ev) => {
+            if ((ev.ctrlKey || ev.metaKey) && ev.key === "v") {
+                pasteText().then((text) => {
+                    if (text) term.paste(text);
+                });
+                return false;
+            }
+            return true;
+        });
+
         const originalLog = console.log;
         const originalError = console.error;
         const writeToTerminal = (data: unknown[], originalFunc: (...d: unknown[]) => void) => {
@@ -54,6 +77,8 @@ const Terminal = forwardRef<TerminalHandles, TerminalProps>(({ kernel }, ref) =>
         return () => {
             console.log = originalLog;
             console.error = originalError;
+            selectionListener.dispose();
+            term.element?.removeEventListener("contextmenu", contextHandler);
         };
     }, []);
 
