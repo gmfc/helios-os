@@ -37,3 +37,8 @@ This project uses `pnpm` for managing Node dependencies and scripts.
     required.
 
 The project enforces TypeScript strict mode. Use four spaces for indentation and ensure files end with a trailing newline.
+
+### Adding built-in CLI apps
+
+1. Add a new file in `apps/cli/programs/` that exports an async `main(syscall, argv)` function.
+2. Run `pnpm build:apps` to regenerate `core/fs/generatedApps.ts` and commit the result.

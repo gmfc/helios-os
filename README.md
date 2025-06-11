@@ -35,8 +35,8 @@ For detailed guides on each component see the [docs directory](docs/README.md).
 ```
 helios/
 ├─ apps/
-│  ├─ cli/          # Built-in CLI commands
-│  │  └─ src/       # Source for bundled binaries
+│  ├─ cli/          # Built-in CLI programs
+│  │  └─ programs/  # Sources compiled into /bin
 │  └─ examples/     # Sample demo programs
 ├─ core/
 │  ├─ kernel.ts     # Syscall bus + scheduler
@@ -47,6 +47,9 @@ helios/
 ├─ ui/              # React windows, xterm bindings
 └─ tools/           # CLI for build/package/snapshot
 ```
+
+Built-in CLI programs are compiled into `/bin` via `pnpm build:apps`.
+Add new sources under `apps/cli/programs/` and rebuild to update `core/fs/generatedApps.ts`.
 
 ---
 

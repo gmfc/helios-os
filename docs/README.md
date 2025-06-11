@@ -10,3 +10,4 @@ This folder contains detailed guides covering each part of the project. Use the 
 - [User Interface](ui.md)
 - [Developer Workflow](workflow.md)
 - [GUI, Shell and Sandbox Roadmap](gui_shell_sandbox.md)
+- [Contributor Guide](../CONTRIBUTING.md)

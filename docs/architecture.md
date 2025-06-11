@@ -15,7 +15,7 @@ Each subsystem lives in its own directory:
 - `core/` – kernel, filesystem and networking implementations.
 - `host/` – Rust sidecar that hosts the V8 isolates and provides Tauri bindings.
 - `ui/` – front‑end windows and components.
-- `apps/` – example applications shipped with the OS.
+- `apps/` – built-in CLI programs (`cli/programs/`) and example GUI apps.
 - `tools/` – command line utilities for building and packaging snapshots.
 
 Snapshots contain the entire JSON state of a machine. The project aims for deterministic replay, so restoring a snapshot recreates the exact same runtime state.
