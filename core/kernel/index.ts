@@ -16,7 +16,7 @@ import {
     saveNamedSnapshot,
     loadNamedSnapshot,
 } from "../fs/sqlite";
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { eventBus } from "../utils/eventBus";
 import { NIC } from "../net/nic";

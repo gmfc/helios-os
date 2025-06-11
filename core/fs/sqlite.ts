@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import type { FileSystemSnapshot, PersistHook } from "./index";
 
 export async function loadSnapshot(): Promise<FileSystemSnapshot | null> {
