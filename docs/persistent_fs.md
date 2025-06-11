@@ -105,23 +105,30 @@ Available packages are listed in `/etc/apt/index.json`. Each entry provides the
 path to a tarball and an optional SHA-256 checksum. The `apt` CLI reads this
 file for `search` and `install` operations and extracts files into `/usr/bin`.
 
-## 7. Performance considerations
+## 7. Recovery procedure
+
+* On boot the kernel checkpoints the WAL using `PRAGMA wal_checkpoint(FULL)`.
+* `PRAGMA integrity_check` verifies the database and logs any corruption.
+* Core directories such as `/etc`, `/bin` and `/sbin` are recreated if missing.
+* Any repairs are printed so the player can be notified after a crash.
+
+## 8. Performance considerations
 
 * A small page cache avoids repeated DB lookups for hot data.
 * Metadata updates can be batched and flushed periodically.
 * Call `PRAGMA wal_checkpoint(TRUNCATE)` on shutdown to keep the DB compact.
 
-## 8. Atomic snapshot & restore
+## 9. Atomic snapshot & restore
 
 Because every change is transactional, a snapshot is a safe copy of `helios.vfs` while no write is active. Restoring is just replacing the file and restarting.
 
-## 9. Extensibility hooks
+## 10. Extensibility hooks
 
 * Additional volumes can be attached with `ATTACH DATABASE` and mounted at paths like `/mnt/usb1`.
 * Quotas can be enforced by adding a `quota` column to inodes.
 * Extended attributes can be stored in a new `xattrs` table.
 
-## 10. Outcome
+## 11. Outcome
 
 * Files and packages persist across restarts.
 * Package installs survive reboot without extra steps.

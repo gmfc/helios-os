@@ -132,6 +132,7 @@ export class PersistentFileSystem implements AsyncFileSystem {
                 await fs.initDefaultFiles();
             });
         }
+        await fs.fsck();
         return fs;
     }
 
@@ -575,6 +576,29 @@ export class PersistentFileSystem implements AsyncFileSystem {
             await this.removeRecursive(inode.id);
         });
         this.cache.delete(path);
+    }
+
+    /**
+     * Run WAL recovery and basic integrity checks.
+     * Recreates missing core directories.
+     */
+    async fsck(): Promise<void> {
+        await this.db.execute("PRAGMA wal_checkpoint(FULL)");
+        const res = await this.db.select<{ integrity_check: string }[]>(
+            "PRAGMA integrity_check",
+        );
+        if (res.length && res[0].integrity_check !== "ok") {
+            console.error("Filesystem integrity check failed");
+        }
+        const required = ["/etc", "/bin", "/sbin"];
+        await this.writeTx(async () => {
+            for (const dir of required) {
+                const inode = await this.lookup(dir);
+                if (!inode) {
+                    await this.createDirectoryInternal(dir, 0o755);
+                }
+            }
+        });
     }
 
     /**
