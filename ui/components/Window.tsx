@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } f
 import Draggable from "react-draggable";
 import { ResizableBox } from "react-resizable";
 import "./Window.css";
+import type { Monitor } from "./WindowManager";
 
 export interface WindowProps {
     id: number;
@@ -18,6 +19,9 @@ export interface WindowProps {
     onToggleMaximize?: () => void;
     zIndex?: number;
     children: React.ReactNode;
+    monitorId: number;
+    monitors: Monitor[];
+    onChangeMonitor?: (id: number) => void;
 }
 
 export interface WindowHandles {
@@ -42,6 +46,9 @@ export const Window = forwardRef<WindowHandles, WindowProps>(
             onToggleMaximize,
             zIndex,
             children,
+            monitorId,
+            monitors,
+            onChangeMonitor,
         },
         ref,
     ) => {
@@ -90,16 +97,19 @@ export const Window = forwardRef<WindowHandles, WindowProps>(
             children
         );
 
+        const offset = monitors[monitorId] ?? { x: 0, y: 0 };
+        const absPos = { x: pos.x + offset.x, y: pos.y + offset.y };
+
         return (
             <Draggable
                 handle=".window-title-bar"
-                position={pos}
+                position={absPos}
                 bounds="parent"
                 nodeRef={nodeRef}
                 onStop={(e, data) => {
-                    const newPos = { x: data.x, y: data.y };
-                    setPos(newPos);
-                    onMove?.(newPos);
+                    const rel = { x: data.x - offset.x, y: data.y - offset.y };
+                    setPos(rel);
+                    onMove?.(rel);
                 }}
             >
                 <div
@@ -139,6 +149,16 @@ export const Window = forwardRef<WindowHandles, WindowProps>(
                                 />
                             </div>
                             <div className="window-title">{title}</div>
+                            <select
+                                className="monitor-select"
+                                value={monitorId}
+                                onChange={(e) => onChangeMonitor?.(parseInt(e.target.value, 10))}
+                                style={{ position: "absolute", right: 8 }}
+                            >
+                                {monitors.map((_, i) => (
+                                    <option key={i} value={i}>{`M${i}`}</option>
+                                ))}
+                            </select>
                         </div>
                         <div className="window-content">{content}</div>
                     </ResizableBox>

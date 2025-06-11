@@ -88,6 +88,10 @@ export function createSyscallDispatcher(
                 return await this.syscall_unlink(pcb, args[0]);
             case "rename":
                 return await this.syscall_rename(pcb, args[0], args[1]);
+            case "add_monitor":
+                return this.sys_add_monitor(args[0], args[1]);
+            case "remove_monitor":
+                return this.sys_remove_monitor(args[0]);
             case "mount":
                 return await this.syscall_mount(args[0], resolvePath(pcb, args[1]));
             case "unmount":
@@ -367,6 +371,16 @@ export async function syscall_udp_send(
     data: Uint8Array,
 ) {
     return this.state.udp.send(sock, data);
+}
+
+/** Add a monitor to the display configuration. */
+export function sys_add_monitor(this: Kernel, width: number, height: number): number {
+    return this.addMonitor(width, height);
+}
+
+/** Remove a monitor by id. */
+export function sys_remove_monitor(this: Kernel, id: number): number {
+    return this.removeMonitor(id);
 }
 
 /**

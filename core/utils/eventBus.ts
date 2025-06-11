@@ -1,4 +1,4 @@
-import type { WindowOpts } from "./kernel";
+import type { WindowOpts, Monitor } from "./kernel";
 
 export interface DrawPayload {
     id: number;
@@ -9,6 +9,7 @@ export interface DrawPayload {
 export interface EventMap {
     draw: DrawPayload;
     "desktop.createWindow": DrawPayload;
+    "desktop.updateMonitors": Monitor[];
     "boot.shellReady": { pid: number };
     "system.reboot": {};
 }

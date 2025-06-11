@@ -102,6 +102,14 @@ export interface WindowOpts {
     height?: number;
     x?: number;
     y?: number;
+    monitorId?: number;
+}
+
+export interface Monitor {
+    width: number;
+    height: number;
+    x: number;
+    y: number;
 }
 
 export interface Snapshot {
@@ -114,6 +122,7 @@ export interface Snapshot {
     udp: unknown;
     services: unknown;
     initPid: number | null;
+    monitors: Monitor[];
 }
 
 /**
@@ -128,6 +137,7 @@ export interface KernelState {
     udp: UDP;
     windows: Array<{ html: Uint8Array; opts: WindowOpts }>;
     services: Map<string, { port: number; proto: string }>;
+    monitors: Monitor[];
 }
 
 export class Kernel {
@@ -186,6 +196,9 @@ export class Kernel {
             udp: new UDP(),
             windows: [],
             services: new Map(),
+            monitors: [
+                { width: 800, height: 600, x: 0, y: 0 },
+            ],
         };
         this.readyQueue = [];
     }
@@ -203,6 +216,7 @@ export class Kernel {
 
         const fs = (await loadFileSystem()) ?? bootstrapFileSystem();
         const kernel = new Kernel(fs);
+        eventBus.emit("desktop.updateMonitors", kernel.state.monitors);
         kernel.pendingNics = [
             {
                 id: "lo0",
@@ -306,6 +320,11 @@ export class Kernel {
         kernel.state.tcp = parsed.tcp instanceof TCP ? parsed.tcp : new TCP();
 
         kernel.state.udp = parsed.udp instanceof UDP ? parsed.udp : new UDP();
+
+        kernel.state.monitors = parsed.monitors && parsed.monitors.length
+            ? parsed.monitors
+            : [{ width: 800, height: 600, x: 0, y: 0 }];
+        eventBus.emit("desktop.updateMonitors", kernel.state.monitors);
 
         for (const [name, svc] of kernel.state.services.entries()) {
             if (name.startsWith("httpd")) {
@@ -421,6 +440,33 @@ export class Kernel {
         this.pendingNics = null;
     }
 
+    public addMonitor(width: number, height: number): number {
+        const id = this.state.monitors.length;
+        const x = this.state.monitors.reduce((s, m) => s + m.width, 0);
+        const monitors = this.state.monitors.concat({ width, height, x, y: 0 });
+        this.state = { ...this.state, monitors };
+        eventBus.emit("desktop.updateMonitors", monitors);
+        return id;
+    }
+
+    public removeMonitor(id: number): number {
+        if (id <= 0 || id >= this.state.monitors.length) return -1;
+        const monitors = this.state.monitors.slice();
+        monitors.splice(id, 1);
+        let offset = 0;
+        for (const m of monitors) {
+            m.x = offset;
+            offset += m.width;
+        }
+        for (const w of this.state.windows) {
+            if (w.opts.monitorId === id) w.opts.monitorId = 0;
+            else if ((w.opts.monitorId ?? 0) > id) w.opts.monitorId!--;
+        }
+        this.state = { ...this.state, monitors };
+        eventBus.emit("desktop.updateMonitors", monitors);
+        return 0;
+    }
+
     public snapshot(): Snapshot {
         const replacer = (_: string, value: unknown) => {
             if (value instanceof Map) {
@@ -483,6 +529,7 @@ export class Kernel {
             udp: this.state.udp,
             services: this.state.services,
             initPid: this.initPid,
+            monitors: this.state.monitors,
         };
 
         return JSON.parse(JSON.stringify(state, replacer));
@@ -594,5 +641,7 @@ export const kernelTest = (typeof vitest !== "undefined" || process.env.VITEST)
           ) => syscall_set_quota.call(k, pcb, ms, mem),
           syscall_ps: (k: Kernel) => syscall_ps.call(k),
           syscall_jobs: (k: Kernel) => syscall_jobs.call(k),
+          addMonitor: (k: Kernel, w: number, h: number) => k.addMonitor(w, h),
+          removeMonitor: (k: Kernel, id: number) => k.removeMonitor(id),
       }
     : undefined;

@@ -51,6 +51,13 @@
 .window-button:nth-child(2) { background-color: #ffbd2e; } /* Minimize */
 .window-button:nth-child(3) { background-color: #27c93f; } /* Maximize */
 
+.monitor-select {
+  background-color: #3c3c3c;
+  color: #e0e0e0;
+  border: 1px solid #222;
+  font-size: 12px;
+}
+
 /* Style for the window content area */
 .window-content {
   flex-grow: 1;
