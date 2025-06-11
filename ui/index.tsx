@@ -28,6 +28,7 @@ const App = () => {
                     height: payload.opts.height ?? 300,
                 },
                 content: payload.html,
+                monitorId: payload.opts.monitorId ?? 0,
             });
         };
         eventBus.on("desktop.createWindow", handler);

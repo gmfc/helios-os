@@ -16,6 +16,8 @@ export interface SyscallDispatcher {
     (call: "readdir", path: string): Promise<FileSystemNode[]>;
     (call: "unlink", path: string): Promise<number>;
     (call: "rename", oldPath: string, newPath: string): Promise<number>;
+    (call: "add_monitor", width: number, height: number): Promise<number>;
+    (call: "remove_monitor", id: number): Promise<number>;
     (call: "mount", image: FileSystemSnapshot, path: string): Promise<number>;
     (call: "unmount", path: string): Promise<number>;
     (call: "set_quota", ms?: number, mem?: number): Promise<{ quotaMs: number; quotaMem: number }>;

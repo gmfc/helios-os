@@ -5,6 +5,7 @@ import React, {
     useEffect,
 } from "react";
 import { Window } from "./Window";
+import { eventBus } from "../../core/utils/eventBus";
 
 export interface WindowState {
     id: number;
@@ -14,6 +15,14 @@ export interface WindowState {
     content: React.ReactNode;
     minimized?: boolean;
     maximized?: boolean;
+    monitorId: number;
+}
+
+export interface Monitor {
+    width: number;
+    height: number;
+    x: number;
+    y: number;
 }
 
 export interface WindowManagerHandles {
@@ -30,6 +39,9 @@ export const WindowManager = forwardRef<
     WindowManagerHandles,
     WindowManagerProps
 >(({ onResize, children }, ref) => {
+    const [monitors, setMonitors] = useState<Monitor[]>([
+        { width: window.innerWidth, height: window.innerHeight, x: 0, y: 0 },
+    ]);
     const [windows, setWindows] = useState<WindowState[]>([
         {
             id: 0,
@@ -39,6 +51,7 @@ export const WindowManager = forwardRef<
             content: children,
             minimized: false,
             maximized: false,
+            monitorId: 0,
         },
     ]);
     const [focusedId, setFocusedId] = useState<number>(0);
@@ -46,7 +59,7 @@ export const WindowManager = forwardRef<
     const openWindow = (state: WindowState) => {
         setWindows((w) => [
             ...w,
-            { ...state, minimized: false, maximized: false },
+            { ...state, minimized: false, maximized: false, monitorId: state.monitorId ?? 0 },
         ]);
         setFocusedId(state.id);
     };
@@ -81,6 +94,14 @@ export const WindowManager = forwardRef<
         );
     };
 
+    const changeMonitor = (id: number, monitor: number) => {
+        setWindows((w) =>
+            w.map((win) =>
+                win.id === id ? { ...win, monitorId: monitor } : win,
+            ),
+        );
+    };
+
     const moveWindow = (id: number, position: { x: number; y: number }) => {
         setWindows((w) =>
             w.map((win) => (win.id === id ? { ...win, position } : win)),
@@ -92,6 +113,12 @@ export const WindowManager = forwardRef<
             w.map((win) => (win.id === id ? { ...win, size } : win)),
         );
     };
+
+    useEffect(() => {
+        const handler = (list: Monitor[]) => setMonitors(list);
+        eventBus.on("desktop.updateMonitors", handler);
+        return () => eventBus.off("desktop.updateMonitors", handler);
+    }, []);
 
     useImperativeHandle(ref, () => ({ openWindow, closeWindow }));
 
@@ -141,8 +168,8 @@ export const WindowManager = forwardRef<
                     let newX = startPos.x + dx;
                     let newY = startPos.y + dy;
                     const edge = 20;
-                    const screenW = window.innerWidth;
-                    const screenH = window.innerHeight;
+                    const screenW = monitors.reduce((s,m)=>Math.max(s,m.x+m.width),0);
+                    const screenH = Math.max(...monitors.map(m=>m.height));
                     if (e.clientX <= edge) newX = 0;
                     if (e.clientY <= edge) newY = 0;
                     if (e.clientX >= screenW - edge)
@@ -158,8 +185,8 @@ export const WindowManager = forwardRef<
                     let newW = startSize.width + dw;
                     let newH = startSize.height + dh;
                     const edge = 20;
-                    const screenW = window.innerWidth;
-                    const screenH = window.innerHeight;
+                    const screenW = monitors.reduce((s,m)=>Math.max(s,m.x+m.width),0);
+                    const screenH = Math.max(...monitors.map(m=>m.height));
                     if (e.clientX >= screenW - edge)
                         newW = screenW - win.position.x;
                     if (e.clientY >= screenH - edge)
@@ -183,8 +210,8 @@ export const WindowManager = forwardRef<
             if (!focusedId) return;
             const win = windows.find((w) => w.id === focusedId);
             if (!win) return;
-            const screenW = window.innerWidth;
-            const screenH = window.innerHeight;
+            const screenW = monitors.reduce((s,m)=>Math.max(s,m.x+m.width),0);
+            const screenH = Math.max(...monitors.map(m=>m.height));
             let position = win.position;
             let size = win.size;
             switch (e.key) {
@@ -232,7 +259,7 @@ export const WindowManager = forwardRef<
     return (
         <div
             className="window-manager-container"
-            style={{ position: "relative", width: "100vw", height: "100vh" }}
+            style={{ position: "relative", width: `${monitors.reduce((s,m)=>Math.max(s,m.x+m.width),0)}px`, height: `${Math.max(...monitors.map(m=>m.height))}px` }}
         >
             {windows.map((win, index) => (
                 <Window
@@ -247,6 +274,9 @@ export const WindowManager = forwardRef<
                     onResize={(size) => resizeWindow(win.id, size)}
                     onMove={(pos) => moveWindow(win.id, pos)}
                     onFocus={focusWindow}
+                    monitorId={win.monitorId}
+                    monitors={monitors}
+                    onChangeMonitor={(m) => changeMonitor(win.id, m)}
                     onClose={closeWindow}
                     onMinimize={() => minimizeWindow(win.id)}
                     onToggleMaximize={() => toggleMaximizeWindow(win.id)}
