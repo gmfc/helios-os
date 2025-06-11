@@ -148,15 +148,33 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     }
 
     const files = parseTar(data);
-    try { await syscall('mkdir', '/usr', 0o755); } catch {}
-    try { await syscall('mkdir', '/usr/bin', 0o755); } catch {}
-    const installed: string[] = [];
+    let theme = false;
     for (const f of files) {
-        const dest = '/usr/bin/' + f.name;
-        const fd = await syscall('open', dest, 'w');
-        await syscall('write', fd, f.data);
-        await syscall('close', fd);
-        installed.push(dest);
+        if (f.name === 'theme.css' || f.name === 'wallpaper.jpg') theme = true;
+    }
+
+    const installed: string[] = [];
+    if (theme) {
+        try { await syscall('mkdir', '/opt', 0o755); } catch {}
+        try { await syscall('mkdir', '/opt/themes', 0o755); } catch {}
+        try { await syscall('mkdir', `/opt/themes/${name}`, 0o755); } catch {}
+        for (const f of files) {
+            const dest = `/opt/themes/${name}/` + f.name;
+            const fd = await syscall('open', dest, 'w');
+            await syscall('write', fd, f.data);
+            await syscall('close', fd);
+            installed.push(dest);
+        }
+    } else {
+        try { await syscall('mkdir', '/usr', 0o755); } catch {}
+        try { await syscall('mkdir', '/usr/bin', 0o755); } catch {}
+        for (const f of files) {
+            const dest = '/usr/bin/' + f.name;
+            const fd = await syscall('open', dest, 'w');
+            await syscall('write', fd, f.data);
+            await syscall('close', fd);
+            installed.push(dest);
+        }
     }
     try { await syscall('mkdir', '/var', 0o755); } catch {}
     try { await syscall('mkdir', '/var/pkg', 0o755); } catch {}

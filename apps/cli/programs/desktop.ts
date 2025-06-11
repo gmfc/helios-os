@@ -33,7 +33,13 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
         }
     }
 
-    const wallpaper = `<style>body{margin:0;background:#004 url('/icons/wallpaper.jpg') center/cover no-repeat;}</style>`;
+    let theme = 'default';
+    try {
+        theme = (await readFile('/etc/theme')).trim() || 'default';
+    } catch {}
+    const cssLink = `<link rel="stylesheet" href="/opt/themes/${theme}/theme.css">`;
+    const wallpaperPath = `/opt/themes/${theme}/wallpaper.jpg`;
+    const wallpaper = `<style>body{margin:0;background:#004 url('${wallpaperPath}') center/cover no-repeat;}</style>${cssLink}`;
     await syscall('draw', new TextEncoder().encode(wallpaper), {
         title: 'Desktop',
         width: 800,
