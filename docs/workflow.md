@@ -23,6 +23,10 @@ This project uses `pnpm` for managing Node dependencies and scripts.
     pnpm build:release
     ```
 
+    On Linux the host requires the `glib-2.0` development
+    package. Without it the build fails with a missing
+    `glib-2.0.pc` error when bundling the Tauri binary.
+
 4. Run the test suite with **Vitest** (powered by Vite) before committing:
 
     ```sh
