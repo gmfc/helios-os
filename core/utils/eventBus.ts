@@ -1,4 +1,5 @@
 import type { WindowOpts, Monitor } from "./kernel";
+import type { SpawnOptions } from "../kernel/syscalls";
 
 export interface DrawPayload {
     id: number;
@@ -17,6 +18,7 @@ export interface EventMap {
     "desktop.updateMonitors": Monitor[];
     "desktop.windowPost": WindowMessagePayload;
     "desktop.windowRecv": WindowMessagePayload;
+    "desktop.appCrashed": { id: number; code: string; opts: SpawnOptions };
     "boot.shellReady": { pid: number };
     "system.reboot": {};
 }

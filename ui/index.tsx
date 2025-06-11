@@ -53,7 +53,11 @@ const App = () => {
     );
 
     return (
-        <WindowManager ref={windowManagerRef} onResize={handleResize}>
+        <WindowManager
+            ref={windowManagerRef}
+            onResize={handleResize}
+            kernel={kernel}
+        >
             {!shellReady ? (
                 <div style={{ color: COLORS.foreground, padding: "10px" }}>
                     Booting...

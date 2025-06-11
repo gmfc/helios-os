@@ -8,6 +8,7 @@
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
   border-radius: 8px;
   overflow: hidden;
+  position: relative;
 }
 
 /* Style for the title bar */
@@ -66,6 +67,21 @@
   display: flex; /* Make content fill space */
   flex-direction: column;
   overflow: hidden; /* Hide overflow from children */
+}
+
+.crash-overlay {
+  position: absolute;
+  top: 32px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  gap: 8px;
 }
 
 /* Let the terminal itself fill the content area */

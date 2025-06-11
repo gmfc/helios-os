@@ -294,6 +294,8 @@ export async function syscall_spawn(
     if (opts.tty !== undefined) pcb.tty = opts.tty;
     if (opts.syscalls) pcb.allowedSyscalls = new Set(opts.syscalls);
     pcb.code = code;
+    pcb.spawnCode = code;
+    pcb.spawnOpts = { ...opts };
     pcb.argv = opts.argv ?? [];
     this.readyQueue.push(pcb);
     if (code === BASH_SOURCE) {
