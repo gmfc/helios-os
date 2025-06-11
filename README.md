@@ -218,7 +218,7 @@ Kernel denies undeclared syscalls.
 
 1. `pnpm i` – installs deps, including `@xterm/*` (new scoped pkgs). ([github.com][7])
 2. `tsconfig.json` defines repo-wide TypeScript options (`target`/`module` set to `esnext`, `jsx` to `react`).
-3. `pnpm dev` – starts Tauri dev server; hot-reload UI & kernel TS.
+3. `pnpm dev` – launches Tauri; `beforeDevCommand` starts the esbuild dev server automatically.
 4. `pnpm build:release` – cross-build Win/macOS/Linux/ARM.
 5. `helios snap path/to/out.helios` – CLI packs snapshot for Steam Workshop.
 6. **Modders:** drop TS file in `apps/`, run `makepkg`, publish to own apt repo.

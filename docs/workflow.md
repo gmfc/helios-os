@@ -8,7 +8,7 @@ This project uses `pnpm` for managing Node dependencies and scripts.
     pnpm i
     ```
 
-2. Start the development environment (launches Tauri and the front‑end in watch mode):
+2. Start the development environment (Tauri spawns the esbuild server automatically):
 
     ```sh
     pnpm dev
