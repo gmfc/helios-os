@@ -228,7 +228,8 @@ Kernel denies undeclared syscalls.
 6. `helios new gui-app my-app` – scaffold a sample GUI app under `apps/examples/`.
 7. `pnpm update-snapshot` – refresh `snapshot.json` using the built-in tool.
 8. **Modders:** drop TS file in `apps/`, run `makepkg`, publish to own apt repo.
-9. `pnpm lint` checks code style; a `precommit` script automatically runs
+9. `apt search foo` lists packages from `/etc/apt/index.json`; `apt install foo` installs them into `/usr/bin`.
+10. `pnpm lint` checks code style; a `precommit` script automatically runs
    `pnpm lint && pnpm test` before each commit.
 
 ---

@@ -99,6 +99,12 @@ Writes merge the new bytes into the existing blob, update the inode size and mod
 
 Executables are TypeScript files. The kernel hashes the source, checks `compile_cache` for a matching compiled blob, and compiles with esbuild on a miss.
 
+### Package index
+
+Available packages are listed in `/etc/apt/index.json`. Each entry provides the
+path to a tarball and an optional SHA-256 checksum. The `apt` CLI reads this
+file for `search` and `install` operations and extracts files into `/usr/bin`.
+
 ## 7. Performance considerations
 
 * A small page cache avoids repeated DB lookups for hot data.
