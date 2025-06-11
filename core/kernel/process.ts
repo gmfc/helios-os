@@ -1,8 +1,9 @@
 // Process management utilities for the Helios-OS Kernel
 
 import { invoke } from "@tauri-apps/api/core";
-import type { SyscallDispatcher } from "./syscalls";
+import type { SyscallDispatcher, SpawnOptions } from "./syscalls";
 import type { Kernel } from "./index";
+import { eventBus } from "../utils/eventBus";
 
 export type ProcessID = number;
 export type FileDescriptor = number;
@@ -32,6 +33,8 @@ export interface ProcessControlBlock {
     nextFd: FileDescriptor;
     code?: string;
     argv?: string[];
+    spawnCode?: string;
+    spawnOpts?: SpawnOptions;
     exited?: boolean;
     exitCode?: number;
 }
@@ -56,6 +59,8 @@ export function createProcess(this: Kernel): ProcessID {
         allowedSyscalls: undefined,
         fds: new Map(),
         nextFd: 3,
+        spawnCode: undefined,
+        spawnOpts: undefined,
         exited: false,
     };
     const processes = new Map(this.state.processes);
@@ -173,6 +178,18 @@ export async function runProcess(
         try {
             await invoke("drop_isolate", { pid: pcb.isolateId });
         } catch {}
+        if ((pcb.exitCode ?? 0) !== 0) {
+            const owners = (this as any).windowOwners as Map<number, ProcessID>;
+            for (const [wid, owner] of owners.entries()) {
+                if (owner === pcb.pid) {
+                    eventBus.emit("desktop.appCrashed", {
+                        id: wid,
+                        code: pcb.spawnCode ?? "",
+                        opts: pcb.spawnOpts ?? {},
+                    });
+                }
+            }
+        }
     }
     dispatcherMap.delete(pcb.pid);
 }

@@ -6,6 +6,7 @@ import React, {
 } from "react";
 import { Window } from "./Window";
 import { eventBus } from "../../core/utils/eventBus";
+import type { Kernel } from "../../core/kernel";
 
 export interface WindowState {
     id: number;
@@ -16,6 +17,7 @@ export interface WindowState {
     minimized?: boolean;
     maximized?: boolean;
     monitorId: number;
+    crashed?: { code: string; opts: any };
 }
 
 export interface Monitor {
@@ -32,13 +34,14 @@ export interface WindowManagerHandles {
 
 interface WindowManagerProps {
     onResize?: () => void;
+    kernel?: Kernel | null;
     children: React.ReactNode;
 }
 
 export const WindowManager = forwardRef<
     WindowManagerHandles,
     WindowManagerProps
->(({ onResize, children }, ref) => {
+>(({ onResize, children, kernel }, ref) => {
     const [monitors, setMonitors] = useState<Monitor[]>([
         { width: window.innerWidth, height: window.innerHeight, x: 0, y: 0 },
     ]);
@@ -76,6 +79,15 @@ export const WindowManager = forwardRef<
 
     const closeWindow = (id: number) => {
         setWindows((w) => w.filter((win) => win.id !== id));
+    };
+
+    const restartWindow = (id: number) => {
+        const win = windows.find((w) => w.id === id);
+        if (!win || !win.crashed || !kernel) return;
+        (kernel as any).syscall_spawn(win.crashed.code, win.crashed.opts).catch(
+            console.error,
+        );
+        closeWindow(id);
     };
 
     const minimizeWindow = (id: number) => {
@@ -118,6 +130,20 @@ export const WindowManager = forwardRef<
         const handler = (list: Monitor[]) => setMonitors(list);
         eventBus.on("desktop.updateMonitors", handler);
         return () => eventBus.off("desktop.updateMonitors", handler);
+    }, []);
+
+    useEffect(() => {
+        const handler = (payload: { id: number; code: string; opts: any }) => {
+            setWindows((w) =>
+                w.map((win) =>
+                    win.id === payload.id
+                        ? { ...win, crashed: { code: payload.code, opts: payload.opts } }
+                        : win,
+                ),
+            );
+        };
+        eventBus.on("desktop.appCrashed", handler);
+        return () => eventBus.off("desktop.appCrashed", handler);
     }, []);
 
     useImperativeHandle(ref, () => ({ openWindow, closeWindow }));
@@ -280,6 +306,16 @@ export const WindowManager = forwardRef<
                     onClose={closeWindow}
                     onMinimize={() => minimizeWindow(win.id)}
                     onToggleMaximize={() => toggleMaximizeWindow(win.id)}
+                    overlay={
+                        win.crashed ? (
+                            <div className="crash-overlay">
+                                <div>App has crashed</div>
+                                <button onClick={() => restartWindow(win.id)}>
+                                    Restart
+                                </button>
+                            </div>
+                        ) : undefined
+                    }
                 >
                     {win.content}
                 </Window>

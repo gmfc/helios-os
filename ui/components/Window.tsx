@@ -23,6 +23,7 @@ export interface WindowProps {
     monitorId: number;
     monitors: Monitor[];
     onChangeMonitor?: (id: number) => void;
+    overlay?: React.ReactNode;
 }
 
 export interface WindowHandles {
@@ -50,6 +51,7 @@ export const Window = forwardRef<WindowHandles, WindowProps>(
             monitorId,
             monitors,
             onChangeMonitor,
+            overlay,
         },
         ref,
     ) => {
@@ -185,6 +187,7 @@ export const Window = forwardRef<WindowHandles, WindowProps>(
                             </select>
                         </div>
                         <div className="window-content">{content}</div>
+                        {overlay}
                     </ResizableBox>
                 </div>
             </Draggable>
