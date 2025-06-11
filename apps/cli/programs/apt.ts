@@ -61,8 +61,8 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     const encode = (s: string) => new TextEncoder().encode(s);
 
     const action = argv[0];
-    if (!action || (action !== 'search' && action !== 'install')) {
-        await syscall('write', STDERR_FD, encode('usage: apt <search|install> <pkg>\n'));
+    if (!action || (action !== 'search' && action !== 'install' && action !== 'remove')) {
+        await syscall('write', STDERR_FD, encode('usage: apt <search|install|remove> <pkg>\n'));
         return 1;
     }
 
@@ -89,6 +89,34 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
                 await syscall('write', STDOUT_FD, encode(p.name + '\n'));
             }
         }
+        return 0;
+    }
+
+    if (action === 'remove') {
+        const name = argv[1];
+        if (!name) {
+            await syscall('write', STDERR_FD, encode('apt remove: missing package name\n'));
+            return 1;
+        }
+        let manRaw: string;
+        try {
+            manRaw = await readText(syscall, `/var/pkg/${name}.json`);
+        } catch {
+            await syscall('write', STDERR_FD, encode('apt: package not installed\n'));
+            return 1;
+        }
+        let manifest: { files: string[] };
+        try {
+            manifest = JSON.parse(manRaw) as { files: string[] };
+        } catch {
+            await syscall('write', STDERR_FD, encode('apt: bad manifest\n'));
+            return 1;
+        }
+        for (const f of manifest.files) {
+            try { await syscall('unlink', f); } catch {}
+        }
+        try { await syscall('unlink', `/var/pkg/${name}.json`); } catch {}
+        await syscall('write', STDOUT_FD, encode('removed ' + name + '\n'));
         return 0;
     }
 
@@ -122,12 +150,19 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     const files = parseTar(data);
     try { await syscall('mkdir', '/usr', 0o755); } catch {}
     try { await syscall('mkdir', '/usr/bin', 0o755); } catch {}
+    const installed: string[] = [];
     for (const f of files) {
         const dest = '/usr/bin/' + f.name;
         const fd = await syscall('open', dest, 'w');
         await syscall('write', fd, f.data);
         await syscall('close', fd);
+        installed.push(dest);
     }
+    try { await syscall('mkdir', '/var', 0o755); } catch {}
+    try { await syscall('mkdir', '/var/pkg', 0o755); } catch {}
+    const manFd = await syscall('open', `/var/pkg/${name}.json`, 'w');
+    await syscall('write', manFd, encode(JSON.stringify({ files: installed }) + '\n'));
+    await syscall('close', manFd);
     await syscall('write', STDOUT_FD, encode('installed ' + name + '\n'));
     return 0;
 }
