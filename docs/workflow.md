@@ -43,16 +43,46 @@ The project enforces TypeScript strict mode. Use four spaces for indentation and
 1. Add a new file in `apps/cli/programs/` that exports an async `main(syscall, argv)` function.
 2. Run `pnpm build:apps` to regenerate `core/fs/generatedApps.ts` and commit the result.
 
-### Creating a new GUI app
+### Creating new apps
 
-Run the CLI scaffolding command:
+Run the CLI scaffolding command for GUI or CLI programs:
 
 ```sh
-pnpm helios new gui-app my-app
+pnpm helios new gui-app my-gui
+pnpm helios new cli-app my-cli
 ```
 
-This generates `apps/examples/my-app/index.tsx` with a basic window example. Build the apps afterwards using `pnpm build:apps`.
-Use `pnpm update-snapshot` to refresh the default snapshot after adding new programs.
+This generates a folder under `apps/examples/` with boilerplate code. Build the apps afterwards using `pnpm build:apps` and update the default snapshot with `pnpm update-snapshot`.
+
+### Packaging and publishing
+
+The `helios` CLI can bundle a directory into a package:
+
+```sh
+pnpm helios makepkg apps/examples/my-gui
+```
+
+Install the resulting archive inside the VM with `apt install <pkg>` and remove it with `apt remove <pkg>`.
+
+To publish a package to the local workshop directory run:
+
+```sh
+pnpm helios publish my-gui-0.1.0.tar.gz
+```
+
+### Messaging and crash handling
+
+GUI windows communicate via `postMessage`:
+
+```ts
+import { postMessage, onMessage } from "../../lib/gui";
+
+const id = await createWindow("<p>Hello</p>", { title: "demo" });
+onMessage(id, (data) => console.log("got", data));
+postMessage(0, id, { ping: true });
+```
+
+Listen for `desktop.appCrashed` on the event bus to be notified when a process terminates unexpectedly.
 
 ### Continuous Integration
 

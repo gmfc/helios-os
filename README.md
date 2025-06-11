@@ -227,9 +227,10 @@ Kernel denies undeclared syscalls.
 5. `helios snap path/to/out.helios` – CLI packs snapshot for Steam Workshop.
 6. `helios new gui-app my-app` or `helios new cli-app my-app` – scaffold sample apps under `apps/examples/`.
 7. `pnpm update-snapshot` – refresh `snapshot.json` using the built-in tool.
-8. **Modders:** drop TS file in `apps/`, run `makepkg`, publish to own apt repo.
+8. **Modders:** build packages with `pnpm helios makepkg apps/examples/my-app` and publish them using `pnpm helios publish my-app-0.1.0.tar.gz`.
 9. `apt search foo` lists packages from `/etc/apt/index.json`; `apt install foo` installs them into `/usr/bin`; `apt remove foo` cleans them up.
-10. `pnpm lint` checks code style; a `precommit` script automatically runs
+10. Communicate between windows with `postMessage` and watch for `desktop.appCrashed` events when a process dies.
+11. `pnpm lint` checks code style; a `precommit` script automatically runs
    `pnpm lint && pnpm test` before each commit.
 
 ---

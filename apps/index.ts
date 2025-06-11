@@ -2,6 +2,7 @@ export * from "./examples/browser";
 export * from "./examples/sshClient";
 export * from "./examples/desktop";
 export * from "./examples/webBrowser";
+export * from "./examples/helloGui";
 
 export * from "./cli/programs/bash";
 export * from "./cli/programs/init";
