@@ -86,6 +86,7 @@ export interface SpawnOpts {
     argv?: string[];
     uid?: number;
     gid?: number;
+    cwd?: string;
     quotaMs?: number;
     quotaMs_total?: number;
     quotaMem?: number;
@@ -368,6 +369,7 @@ export class Kernel {
             argv,
             syscalls: manifestSyscalls,
             ...opts,
+            cwd: opts.cwd ?? "/",
         });
     }
 
@@ -577,8 +579,11 @@ export const kernelTest = (typeof vitest !== "undefined" || process.env.VITEST)
               html: Uint8Array,
               opts: WindowOpts,
           ) => syscall_draw.call(k, html, opts),
-          syscall_readdir: (k: Kernel, path: string) =>
-              syscall_readdir.call(k, path),
+          syscall_readdir: (
+              k: Kernel,
+              pcb: ProcessControlBlock,
+              path: string,
+          ) => syscall_readdir.call(k, pcb, path),
           syscall_kill: (k: Kernel, pid: number, sig?: number) =>
               syscall_kill.call(k, pid, sig),
           syscall_set_quota: (

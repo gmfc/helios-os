@@ -210,7 +210,7 @@ describe("Kernel", () => {
         kernelTest!.getState(procKernel).fs.createDirectory("/tmp", 0o755);
         kernelTest!.getState(procKernel).fs.createFile("/tmp/foo.txt", "bar", 0o644);
         const f = await kernelTest!.syscall_open(procKernel, procPcb, "/tmp/foo.txt", "r");
-        const fdList = await kernelTest!.syscall_readdir(procKernel, `/proc/${procPid}/fd`);
+        const fdList = await kernelTest!.syscall_readdir(procKernel, procPcb, `/proc/${procPid}/fd`);
         assert(
             fdList.some((n: any) => n.path === `/proc/${procPid}/fd/${f}`),
             "/proc/<pid>/fd lists open descriptors",

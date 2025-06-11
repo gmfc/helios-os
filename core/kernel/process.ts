@@ -19,6 +19,7 @@ export interface ProcessControlBlock {
     isolateId: number;
     uid: number;
     gid: number;
+    cwd: string;
     quotaMs: number;
     quotaMs_total: number;
     quotaMem: number;
@@ -44,6 +45,7 @@ export function createProcess(this: Kernel): ProcessID {
         isolateId: pid,
         uid: 1000,
         gid: 1000,
+        cwd: "/",
         quotaMs: 10,
         quotaMs_total: Infinity,
         quotaMem: 8 * 1024 * 1024,
