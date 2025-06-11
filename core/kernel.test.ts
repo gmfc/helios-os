@@ -1,14 +1,14 @@
 import assert from "assert";
 import { describe, it, beforeEach, afterEach } from "vitest";
 import { createHash } from "node:crypto";
-import { Kernel } from "./kernel";
+import { Kernel, kernelTest } from "./kernel";
 import { InMemoryFileSystem } from "./fs";
 
 describe("Kernel", () => {
-    let kernel: any;
+    let kernel: Kernel;
 
     beforeEach(() => {
-        kernel = new (Kernel as any)(new InMemoryFileSystem());
+        kernel = kernelTest!.createKernel(new InMemoryFileSystem());
     });
 
     afterEach(async () => {
@@ -17,11 +17,11 @@ describe("Kernel", () => {
 
     it("scheduler stop", async () => {
         let ran = false;
-        kernel.runProcess = async (pcb: any) => {
+        kernelTest!.setRunProcess(kernel, async (pcb: any) => {
             ran = true;
             pcb.exited = true;
-        };
-        await kernel["syscall_spawn"]("dummy");
+        });
+        await kernelTest!.syscall_spawn(kernel, "dummy");
         const startPromise = kernel.start();
         setTimeout(() => kernel.stop(), 10);
         await startPromise;
@@ -32,17 +32,17 @@ describe("Kernel", () => {
         const img = new InMemoryFileSystem();
         img.createFile("/foo.txt", "bar", 0o644);
         const snap = img.getSnapshot();
-        await kernel["syscall_mount"](snap, "/mnt");
-        assert(kernel["state"].fs.getNode("/mnt/foo.txt"), "file mounted");
-        await kernel["syscall_unmount"]("/mnt");
-        assert(!kernel["state"].fs.getNode("/mnt/foo.txt"), "file unmounted");
+        await kernelTest!.syscall_mount(kernel, snap, "/mnt");
+        assert(kernelTest!.getState(kernel).fs.getNode("/mnt/foo.txt"), "file mounted");
+        await kernelTest!.syscall_unmount(kernel, "/mnt");
+        assert(!kernelTest!.getState(kernel).fs.getNode("/mnt/foo.txt"), "file unmounted");
     });
 
     it("opening directory throws EISDIR", async () => {
-        const pid = kernel["createProcess"]();
-        const pcb = kernel["state"].processes.get(pid);
+        const pid = kernelTest!.createProcess(kernel);
+        const pcb = kernelTest!.getState(kernel).processes.get(pid)!;
         try {
-            await kernel["syscall_open"](pcb, "/", "r");
+            await kernelTest!.syscall_open(kernel, pcb, "/", "r");
             assert.fail("opening directory should throw");
         } catch (e: any) {
             assert(e.message.includes("EISDIR"), "EISDIR error expected");
@@ -50,25 +50,25 @@ describe("Kernel", () => {
     });
 
     it("ps syscall returns processes", () => {
-        const list = kernel["syscall_ps"]();
+        const list = kernelTest!.syscall_ps(kernel);
         assert(Array.isArray(list) && list.length > 0, "ps should return processes");
     });
 
     it("ps resource accumulation", async () => {
-        const psKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+        const psKernel = kernelTest!.createKernel(new InMemoryFileSystem());
         let runs = 0;
-        psKernel.runProcess = async (pcb: any) => {
+        kernelTest!.setRunProcess(psKernel, async (pcb: any) => {
             pcb.exitCode = 0;
             pcb.cpuMs += 5;
             pcb.memBytes += 1024;
             runs++;
             if (runs >= 2) pcb.exited = true;
-        };
-        const psPid = await psKernel["syscall_spawn"]("dummy", { tty: "/dev/tty1" });
-        const psPcb = psKernel["state"].processes.get(psPid);
-        await psKernel.runProcess(psPcb);
-        await psKernel.runProcess(psPcb);
-        const psList = psKernel["syscall_ps"]();
+        });
+        const psPid = await kernelTest!.syscall_spawn(psKernel, "dummy", { tty: "/dev/tty1" });
+        const psPcb = kernelTest!.getState(psKernel).processes.get(psPid)!;
+        await kernelTest!.runProcess(psKernel, psPcb);
+        await kernelTest!.runProcess(psKernel, psPcb);
+        const psList = kernelTest!.syscall_ps(psKernel);
         const proc = psList.find((p: any) => p.pid === psPid);
         assert(
             proc &&
@@ -80,11 +80,11 @@ describe("Kernel", () => {
     });
 
     it("syscall permissions persist after restore", async () => {
-        const permKernel: any = new (Kernel as any)(new InMemoryFileSystem());
-        const pid2 = await permKernel["syscall_spawn"]("dummy", { syscalls: ["ps"] });
+        const permKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        const pid2 = await kernelTest!.syscall_spawn(permKernel, "dummy", { syscalls: ["ps"] });
         const permSnap = permKernel.snapshot();
-        const restored: any = await (Kernel as any).restore(permSnap);
-        const pcb2 = restored["state"].processes.get(pid2);
+        const restored = await Kernel.restore(permSnap);
+        const pcb2 = kernelTest!.getState(restored).processes.get(pid2)!;
         assert(
             pcb2.allowedSyscalls instanceof Set && pcb2.allowedSyscalls.has("ps"),
             "permissions should persist after restore",
@@ -92,16 +92,16 @@ describe("Kernel", () => {
     });
 
     it("open descriptors survive snapshot restore", async () => {
-        const fdKernel: any = new (Kernel as any)(new InMemoryFileSystem());
-        fdKernel["state"].fs.createDirectory("/tmp", 0o755);
-        fdKernel["state"].fs.createFile("/tmp/foo.txt", "hello", 0o644);
-        const pid3 = fdKernel["createProcess"]();
-        const pcb3 = fdKernel["state"].processes.get(pid3);
-        const fd = await fdKernel["syscall_open"](pcb3, "/tmp/foo.txt", "r");
+        const fdKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        kernelTest!.getState(fdKernel).fs.createDirectory("/tmp", 0o755);
+        kernelTest!.getState(fdKernel).fs.createFile("/tmp/foo.txt", "hello", 0o644);
+        const pid3 = kernelTest!.createProcess(fdKernel);
+        const pcb3 = kernelTest!.getState(fdKernel).processes.get(pid3)!;
+        const fd = await kernelTest!.syscall_open(fdKernel, pcb3, "/tmp/foo.txt", "r");
         const snapFd = fdKernel.snapshot();
-        const restoredFd: any = await (Kernel as any).restore(snapFd);
-        const pcbRestored = restoredFd["state"].processes.get(pid3);
-        const data = await restoredFd["syscall_read"](pcbRestored, fd, 5);
+        const restoredFd = await Kernel.restore(snapFd);
+        const pcbRestored = kernelTest!.getState(restoredFd).processes.get(pid3)!;
+        const data = await kernelTest!.syscall_read(restoredFd, pcbRestored, fd, 5);
         assert(new TextDecoder().decode(data) === "hello", "open descriptor restored");
     });
 
@@ -119,8 +119,8 @@ describe("Kernel", () => {
             }
             return { running: false, exit_code: 0, cpu_ms: 1, mem_bytes: 0 };
         });
-        const schedKernel: any = new (Kernel as any)(new InMemoryFileSystem());
-        await schedKernel["syscall_spawn"]("dummy", { quotaMs: 1 });
+        const schedKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        await kernelTest!.syscall_spawn(schedKernel, "dummy", { quotaMs: 1 });
         const schedStart = schedKernel.start();
         setTimeout(() => schedKernel.stop(), 10);
         await schedStart;
@@ -147,11 +147,11 @@ describe("Kernel", () => {
             }
             return undefined;
         });
-        const persistKernel: any = new (Kernel as any)(new InMemoryFileSystem());
-        const persistPid = await persistKernel["syscall_spawn"]("dummy", { quotaMs: 1 });
-        const persistPcb = persistKernel["state"].processes.get(persistPid);
-        await persistKernel["runProcess"](persistPcb);
-        await persistKernel["runProcess"](persistPcb);
+        const persistKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        const persistPid = await kernelTest!.syscall_spawn(persistKernel, "dummy", { quotaMs: 1 });
+        const persistPcb = kernelTest!.getState(persistKernel).processes.get(persistPid)!;
+        await kernelTest!.runProcess(persistKernel, persistPcb);
+        await kernelTest!.runProcess(persistKernel, persistPcb);
         clearPersist();
         // @ts-ignore
         delete globalThis.window;
@@ -164,66 +164,66 @@ describe("Kernel", () => {
     });
 
     it("job table management", () => {
-        const jobKernel: any = new (Kernel as any)(new InMemoryFileSystem());
+        const jobKernel = kernelTest!.createKernel(new InMemoryFileSystem());
         const jid = jobKernel.registerJob([123], "sleep 1");
-        let jobList = jobKernel["syscall_jobs"]();
+        let jobList = kernelTest!.syscall_jobs(jobKernel);
         assert.strictEqual(jobList.length, 1, "job should register");
         assert.strictEqual(jobList[0].id, jid, "job id matches");
         jobKernel.updateJobStatus(jid, "Done");
-        jobList = jobKernel["syscall_jobs"]();
+        jobList = kernelTest!.syscall_jobs(jobKernel);
         assert.strictEqual(jobList[0].status, "Done", "status updates");
         jobKernel.removeJob(jid);
-        assert.strictEqual(jobKernel["syscall_jobs"]().length, 0, "job removal");
+        assert.strictEqual(kernelTest!.syscall_jobs(jobKernel).length, 0, "job removal");
     });
 
     it("snapshot save/load", async () => {
-        const snapKernel: any = new (Kernel as any)(new InMemoryFileSystem());
-        snapKernel["state"].fs.createDirectory("/snap", 0o755);
-        snapKernel["state"].fs.createFile("/snap/test.txt", "data", 0o644);
-        snapKernel["syscall_draw"](new TextEncoder().encode("<p>hi</p>"), { title: "t" });
+        const snapKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        kernelTest!.getState(snapKernel).fs.createDirectory("/snap", 0o755);
+        kernelTest!.getState(snapKernel).fs.createFile("/snap/test.txt", "data", 0o644);
+        kernelTest!.syscall_draw(snapKernel, new TextEncoder().encode("<p>hi</p>"), { title: "t" });
         const hash1 = createHash("sha256")
-            .update(JSON.stringify(snapKernel["state"].fs.getSnapshot()))
+            .update(JSON.stringify(kernelTest!.getState(snapKernel).fs.getSnapshot()))
             .digest("hex");
         const snapshot = snapKernel.snapshot();
-        const restoredSnap: any = await (Kernel as any).restore(snapshot);
+        const restoredSnap = await Kernel.restore(snapshot);
         const hash2 = createHash("sha256")
-            .update(JSON.stringify(restoredSnap["state"].fs.getSnapshot()))
+            .update(JSON.stringify(kernelTest!.getState(restoredSnap).fs.getSnapshot()))
             .digest("hex");
         assert.strictEqual(hash1, hash2, "filesystem hash should match after restore");
         assert.deepStrictEqual(
-            restoredSnap["state"].windows,
-            snapKernel["state"].windows,
+            kernelTest!.getState(restoredSnap).windows,
+            kernelTest!.getState(snapKernel).windows,
             "windows should restore identically",
         );
     });
 
     it("/proc filesystem", async () => {
-        const procKernel: any = new (Kernel as any)(new InMemoryFileSystem());
-        const procPid = procKernel["createProcess"]();
-        const procPcb = procKernel["state"].processes.get(procPid);
-        procKernel["state"].fs.createDirectory("/tmp", 0o755);
-        procKernel["state"].fs.createFile("/tmp/foo.txt", "bar", 0o644);
-        const f = await procKernel["syscall_open"](procPcb, "/tmp/foo.txt", "r");
-        const fdList = await procKernel["syscall_readdir"](`/proc/${procPid}/fd`);
+        const procKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        const procPid = kernelTest!.createProcess(procKernel);
+        const procPcb = kernelTest!.getState(procKernel).processes.get(procPid)!;
+        kernelTest!.getState(procKernel).fs.createDirectory("/tmp", 0o755);
+        kernelTest!.getState(procKernel).fs.createFile("/tmp/foo.txt", "bar", 0o644);
+        const f = await kernelTest!.syscall_open(procKernel, procPcb, "/tmp/foo.txt", "r");
+        const fdList = await kernelTest!.syscall_readdir(procKernel, `/proc/${procPid}/fd`);
         assert(
             fdList.some((n: any) => n.path === `/proc/${procPid}/fd/${f}`),
             "/proc/<pid>/fd lists open descriptors",
         );
-        const sfd = await procKernel["syscall_open"](procPcb, `/proc/${procPid}/status`, "r");
-        const stat = await procKernel["syscall_read"](procPcb, sfd, 1024);
+        const sfd = await kernelTest!.syscall_open(procKernel, procPcb, `/proc/${procPid}/status`, "r");
+        const stat = await kernelTest!.syscall_read(procKernel, procPcb, sfd, 1024);
         const text = new TextDecoder().decode(stat);
         assert(
             text.includes("pid\t" + procPid) || text.includes("pid:\t" + procPid),
             "status file readable",
         );
         try {
-            await procKernel["syscall_open"](procPcb, `/proc/${procPid + 1}/status`, "r");
+            await kernelTest!.syscall_open(procKernel, procPcb, `/proc/${procPid + 1}/status`, "r");
             assert.fail("opening nonexistent /proc entry should throw");
         } catch (e: any) {
             assert(e.message.includes("ENOENT"), "ENOENT expected for missing process");
         }
         try {
-            await procKernel["syscall_open"](procPcb, `/proc/${procPid}/fd/${procPcb.nextFd}`, "r");
+            await kernelTest!.syscall_open(procKernel, procPcb, `/proc/${procPid}/fd/${procPcb.nextFd}`, "r");
             assert.fail("opening nonexistent fd should throw");
         } catch (e: any) {
             assert(e.message.includes("ENOENT"), "ENOENT expected for missing fd");
@@ -231,21 +231,21 @@ describe("Kernel", () => {
     });
 
     it("kill syscall terminates a process", async () => {
-        const killKernel: any = new (Kernel as any)(new InMemoryFileSystem());
-        const killPid = await killKernel["syscall_spawn"]("dummy");
-        const killPcb = killKernel["state"].processes.get(killPid);
-        const killRes = killKernel["syscall_kill"](killPid, 9);
+        const killKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        const killPid = await kernelTest!.syscall_spawn(killKernel, "dummy");
+        const killPcb = kernelTest!.getState(killKernel).processes.get(killPid)!;
+        const killRes = kernelTest!.syscall_kill(killKernel, killPid, 9);
         assert.strictEqual(killRes, 0, "kill should return 0");
         assert.strictEqual(killPcb.exited, true, "process should be marked exited");
     });
 
     it("init process cannot be killed", async () => {
-        const initKernel: any = new (Kernel as any)(new InMemoryFileSystem());
-        const initPid = await initKernel["syscall_spawn"]("dummy");
-        initKernel["initPid"] = initPid;
-        const initRes = initKernel["syscall_kill"](initPid, 9);
+        const initKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        const initPid = await kernelTest!.syscall_spawn(initKernel, "dummy");
+        kernelTest!.setInitPid(initKernel, initPid);
+        const initRes = kernelTest!.syscall_kill(initKernel, initPid, 9);
         assert.strictEqual(initRes, -1, "killing init should fail");
-        const initPcb = initKernel["state"].processes.get(initPid);
+        const initPcb = kernelTest!.getState(initKernel).processes.get(initPid)!;
         assert.strictEqual(initPcb.exited, false, "init should remain running");
     });
 
@@ -256,11 +256,11 @@ describe("Kernel", () => {
         };
         const { mockIPC: mockQuota, clearMocks: clearQuota } = await import("@tauri-apps/api/mocks");
         mockQuota(() => ({ running: true, cpu_ms: 1, mem_bytes: 2048 }));
-        const quotaKernel: any = new (Kernel as any)(new InMemoryFileSystem());
-        const quotaPid = await quotaKernel["syscall_spawn"]("dummy", { quotaMs: 1 });
-        const quotaPcb = quotaKernel["state"].processes.get(quotaPid);
-        quotaKernel["syscall_set_quota"](quotaPcb, undefined, 1024);
-        await quotaKernel["runProcess"](quotaPcb);
+        const quotaKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        const quotaPid = await kernelTest!.syscall_spawn(quotaKernel, "dummy", { quotaMs: 1 });
+        const quotaPcb = kernelTest!.getState(quotaKernel).processes.get(quotaPid)!;
+        kernelTest!.syscall_set_quota(quotaKernel, quotaPcb, undefined, 1024);
+        await kernelTest!.runProcess(quotaKernel, quotaPcb);
         clearQuota();
         // @ts-ignore
         delete globalThis.window;
