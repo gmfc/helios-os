@@ -6,10 +6,17 @@ export interface DrawPayload {
     opts: WindowOpts;
 }
 
+export interface WindowMessagePayload {
+    id: number;
+    data: unknown;
+}
+
 export interface EventMap {
     draw: DrawPayload;
     "desktop.createWindow": DrawPayload;
     "desktop.updateMonitors": Monitor[];
+    "desktop.windowPost": WindowMessagePayload;
+    "desktop.windowRecv": WindowMessagePayload;
     "boot.shellReady": { pid: number };
     "system.reboot": {};
 }

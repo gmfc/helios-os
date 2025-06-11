@@ -3,6 +3,7 @@ import Draggable from "react-draggable";
 import { ResizableBox } from "react-resizable";
 import "./Window.css";
 import type { Monitor } from "./WindowManager";
+import { eventBus, type WindowMessagePayload } from "../../core/utils/eventBus";
 
 export interface WindowProps {
     id: number;
@@ -86,9 +87,32 @@ export const Window = forwardRef<WindowHandles, WindowProps>(
             }
         }, [maximized]);
 
+        const iframeRef = useRef<HTMLIFrameElement>(null);
+
+        useEffect(() => {
+            const handler = (payload: WindowMessagePayload) => {
+                if (payload.id === id) {
+                    iframeRef.current?.contentWindow?.postMessage(payload.data, "*");
+                }
+            };
+            eventBus.on("desktop.windowPost", handler);
+            return () => eventBus.off("desktop.windowPost", handler);
+        }, [id]);
+
+        useEffect(() => {
+            const listener = (e: MessageEvent) => {
+                if (e.source === iframeRef.current?.contentWindow) {
+                    eventBus.emit("desktop.windowRecv", { id, data: e.data });
+                }
+            };
+            window.addEventListener("message", listener);
+            return () => window.removeEventListener("message", listener);
+        }, [id]);
+
         const content =
             typeof children === "string" ? (
             <iframe
+                ref={iframeRef}
                 srcDoc={children as string}
                 sandbox="allow-scripts"
                 style={{ width: "100%", height: "100%", border: "none" }}
