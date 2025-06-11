@@ -8,6 +8,7 @@ import { main as nanoMain } from "../../apps/cli/programs/nano";
 import { main as browserMain } from "../../apps/cli/programs/browser";
 import { main as pingMain } from "../../apps/cli/programs/ping";
 import { main as desktopMain } from "../../apps/cli/programs/desktop";
+import { main as startxMain } from "../../apps/cli/programs/startx";
 import { main as lsMain } from "../../apps/cli/programs/ls";
 import { main as mkdirMain } from "../../apps/cli/programs/mkdir";
 import { main as rmMain } from "../../apps/cli/programs/rm";
@@ -28,6 +29,7 @@ const NANO_SOURCE = nanoMain.toString();
 const BROWSER_SOURCE = browserMain.toString();
 const PING_SOURCE = pingMain.toString();
 const DESKTOP_SOURCE = desktopMain.toString();
+const STARTX_SOURCE = startxMain.toString();
 const LS_SOURCE = lsMain.toString();
 const MKDIR_SOURCE = mkdirMain.toString();
 const RM_SOURCE = rmMain.toString();
@@ -69,6 +71,11 @@ export const PING_MANIFEST = JSON.stringify({
 
 export const DESKTOP_MANIFEST = JSON.stringify({
     name: "desktop",
+    syscalls: ["open", "read", "write", "close", "spawn"],
+});
+
+export const STARTX_MANIFEST = JSON.stringify({
+    name: "startx",
     syscalls: ["open", "read", "write", "close", "spawn"],
 });
 
@@ -158,6 +165,7 @@ export const BUNDLED_APPS = new Map<string, string>([
     ["browser", BROWSER_SOURCE],
     ["ping", PING_SOURCE],
     ["desktop", DESKTOP_SOURCE],
+    ["startx", STARTX_SOURCE],
     ["ls", LS_SOURCE],
     ["mkdir", MKDIR_SOURCE],
     ["rm", RM_SOURCE],
@@ -178,6 +186,7 @@ export {
     BROWSER_SOURCE,
     PING_SOURCE,
     DESKTOP_SOURCE,
+    STARTX_SOURCE,
     LS_SOURCE,
     MKDIR_SOURCE,
     RM_SOURCE,

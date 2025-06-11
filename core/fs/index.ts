@@ -5,6 +5,7 @@ import {
     BROWSER_SOURCE,
     PING_SOURCE,
     DESKTOP_SOURCE,
+    STARTX_SOURCE,
     PS_SOURCE,
     INIT_SOURCE,
     LOGIN_SOURCE,
@@ -20,6 +21,7 @@ import {
     BROWSER_MANIFEST,
     PING_MANIFEST,
     DESKTOP_MANIFEST,
+    STARTX_MANIFEST,
     PS_MANIFEST,
     SLEEP_MANIFEST,
     INIT_MANIFEST,
@@ -115,6 +117,8 @@ export class InMemoryFileSystem implements AsyncFileSystem {
         this.createFile("/bin/ping.manifest.json", PING_MANIFEST, 0o644);
         this.createFile("/bin/desktop", DESKTOP_SOURCE, 0o755);
         this.createFile("/bin/desktop.manifest.json", DESKTOP_MANIFEST, 0o644);
+        this.createFile("/bin/startx", STARTX_SOURCE, 0o755);
+        this.createFile("/bin/startx.manifest.json", STARTX_MANIFEST, 0o644);
         this.createFile("/bin/ps", PS_SOURCE, 0o755);
         this.createFile("/bin/ps.manifest.json", PS_MANIFEST, 0o644);
         this.createFile("/bin/sleep", SLEEP_SOURCE, 0o755);
