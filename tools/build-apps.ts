@@ -22,6 +22,7 @@ const manifests: Record<string, any> = {
     kill: { name: "kill", syscalls: ["kill", "jobs"] },
     sleep: { name: "sleep", syscalls: [] },
     ulimit: { name: "ulimit", syscalls: ["set_quota", "write"] },
+    apt: { name: "apt", syscalls: ["open", "read", "write", "close", "mkdir"] },
     bash: {
         name: "bash",
         syscalls: [
@@ -67,6 +68,7 @@ const bundledOrder = [
     "bash",
     "snapshot",
     "ulimit",
+    "apt",
 ];
 
 function upper(name: string): string {
