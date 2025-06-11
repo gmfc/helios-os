@@ -418,6 +418,52 @@ export class InMemoryFileSystem implements AsyncFileSystem {
         return fs;
     }
 
+    public snapshotSubtree(path: string): FileSystemSnapshot {
+        const root = this.nodes.get(path);
+        if (!root || root.kind !== "dir") {
+            throw new Error(`ENOENT: no such directory, snapshot '${path}'`);
+        }
+
+        const copyNode = (node: FileSystemNode): FileSystemNode => {
+            const relPath = node.path.slice(path.length) || "/";
+            const n: FileSystemNode = {
+                path: relPath,
+                kind: node.kind,
+                permissions: node.permissions,
+                uid: node.uid,
+                gid: node.gid,
+                createdAt: new Date(node.createdAt),
+                modifiedAt: new Date(node.modifiedAt),
+                virtual: node.virtual,
+                onRead: node.onRead,
+            };
+            if (node.kind === "file" && node.data) {
+                n.data = new Uint8Array(node.data);
+            }
+            if (node.kind === "dir") {
+                n.children = new Map();
+                for (const child of node.children?.values() ?? []) {
+                    const c = copyNode(child);
+                    n.children.set(getBaseName(c.path), c);
+                }
+            }
+            return n;
+        };
+
+        const rootCopy = copyNode(root);
+        const nodes = new Map<string, FileSystemNode>();
+        const populate = (n: FileSystemNode) => {
+            nodes.set(n.path, n);
+            if (n.kind === "dir") {
+                for (const child of n.children?.values() ?? []) {
+                    populate(child);
+                }
+            }
+        };
+        populate(rootCopy);
+        return { root: rootCopy, nodes };
+    }
+
     public mount(image: FileSystemSnapshot, path: string): Promise<void> {
         const snap = this.deserialize(image);
         let mountPoint = this.nodes.get(path);

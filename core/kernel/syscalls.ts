@@ -14,6 +14,8 @@ import type { AsyncFileSystem } from "../fs/async";
 import type { Kernel, KernelState, WindowOpts, Snapshot } from "./index";
 import type { ProcessControlBlock, FileDescriptor, ProcessID } from "./process";
 import type { ServiceHandler } from "./index";
+import * as fs from "node:fs/promises";
+import pathModule from "node:path";
 
 export type SyscallDispatcher = (
     call: string,
@@ -405,19 +407,51 @@ export async function syscall_rename(
 /** Mount a filesystem snapshot at the given path. */
 export async function syscall_mount(
     this: Kernel,
-    image: FileSystemSnapshot,
-    path: string,
+    imagePath: string,
+    mountPoint: string,
 ): Promise<number> {
-    await this.state.fs.mount(image, path);
+    const raw = await fs.readFile(imagePath, "utf8");
+    const snap = JSON.parse(raw) as FileSystemSnapshot;
+    await this.state.fs.mount(snap, mountPoint);
+    (this as unknown as { mountedVolumes: Map<string, string> }).mountedVolumes.set(
+        mountPoint,
+        pathModule.resolve(imagePath),
+    );
     return 0;
 }
 
 /** Unmount a previously mounted filesystem image. */
 export async function syscall_unmount(
     this: Kernel,
-    path: string,
+    mountPoint: string,
 ): Promise<number> {
-    await this.state.fs.unmount(path);
+    const kernelWithVolumes = this as unknown as {
+        mountedVolumes: Map<string, string>;
+    };
+    const file = kernelWithVolumes.mountedVolumes.get(mountPoint);
+    let snap: FileSystemSnapshot | undefined;
+    const fsAny = this.state.fs as unknown as {
+        snapshotSubtree?: (p: string) => FileSystemSnapshot;
+    };
+    if (file && fsAny.snapshotSubtree) {
+        snap = fsAny.snapshotSubtree(mountPoint);
+    }
+
+    await this.state.fs.unmount(mountPoint);
+
+    for (const pcb of this.state.processes.values()) {
+        for (const [fd, entry] of pcb.fds) {
+            if (entry.path === mountPoint || entry.path.startsWith(mountPoint + "/")) {
+                pcb.fds.delete(fd);
+                this.removeProcFd(pcb.pid, fd);
+            }
+        }
+    }
+
+    if (file && snap) {
+        await fs.writeFile(file, JSON.stringify(snap), "utf8");
+        kernelWithVolumes.mountedVolumes.delete(mountPoint);
+    }
     return 0;
 }
 
