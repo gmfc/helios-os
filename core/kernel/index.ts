@@ -153,6 +153,7 @@ export class Kernel {
     > = new Map();
     private nextJob = 1;
     private mountedVolumes: Map<string, string> = new Map();
+    private windowOwners: Map<number, ProcessID> = new Map();
     private createProcess = createProcess;
     private cleanupProcess = cleanupProcess;
     private ensureProcRoot = ensureProcRoot;
@@ -623,9 +624,10 @@ export const kernelTest = (typeof vitest !== "undefined" || process.env.VITEST)
           ) => syscall_read.call(k, pcb, fd, len),
           syscall_draw: (
               k: Kernel,
+              pcb: ProcessControlBlock,
               html: Uint8Array,
               opts: WindowOpts,
-          ) => syscall_draw.call(k, html, opts),
+          ) => syscall_draw.call(k, pcb, html, opts),
           syscall_readdir: (
               k: Kernel,
               pcb: ProcessControlBlock,

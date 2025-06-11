@@ -186,7 +186,8 @@ describe("Kernel", () => {
         const snapKernel = kernelTest!.createKernel(new InMemoryFileSystem());
         kernelTest!.getState(snapKernel).fs.createDirectory("/snap", 0o755);
         kernelTest!.getState(snapKernel).fs.createFile("/snap/test.txt", "data", 0o644);
-        kernelTest!.syscall_draw(snapKernel, new TextEncoder().encode("<p>hi</p>"), { title: "t" });
+        const pcb = kernelTest!.getState(snapKernel).processes.get(1)!;
+        kernelTest!.syscall_draw(snapKernel, pcb, new TextEncoder().encode("<p>hi</p>"), { title: "t" });
         const hash1 = createHash("sha256")
             .update(JSON.stringify(kernelTest!.getState(snapKernel).fs.getSnapshot()))
             .digest("hex");

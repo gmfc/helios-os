@@ -79,7 +79,7 @@ export function createSyscallDispatcher(
             case "udp_send":
                 return this.syscall_udp_send(args[0], args[1]);
             case "draw":
-                return this.syscall_draw(args[0], args[1]);
+                return this.syscall_draw(pcb, args[0], args[1]);
             case "mkdir":
                 return await this.syscall_mkdir(pcb, args[0], args[1]);
             case "readdir":
@@ -388,6 +388,7 @@ export function sys_remove_monitor(this: Kernel, id: number): number {
  */
 export function syscall_draw(
     this: Kernel,
+    pcb: ProcessControlBlock,
     html: Uint8Array,
     opts: WindowOpts,
 ): number {
@@ -401,6 +402,7 @@ export function syscall_draw(
         opts,
     };
     eventBus.emit("desktop.createWindow", payload);
+    (this as any).windowOwners?.set(id, pcb.pid);
     return id;
 }
 
