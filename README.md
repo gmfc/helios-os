@@ -225,8 +225,10 @@ Kernel denies undeclared syscalls.
 4. `pnpm build:release` – cross-build Win/macOS/Linux/ARM using the same build script.
    On Linux this step requires the `glib-2.0` development package; otherwise bundling fails with a `glib-2.0.pc` lookup error.
 5. `helios snap path/to/out.helios` – CLI packs snapshot for Steam Workshop.
-6. **Modders:** drop TS file in `apps/`, run `makepkg`, publish to own apt repo.
-7. `pnpm lint` checks code style; a `precommit` script automatically runs
+6. `helios new gui-app my-app` – scaffold a sample GUI app under `apps/examples/`.
+7. `pnpm update-snapshot` – refresh `snapshot.json` using the built-in tool.
+8. **Modders:** drop TS file in `apps/`, run `makepkg`, publish to own apt repo.
+9. `pnpm lint` checks code style; a `precommit` script automatically runs
    `pnpm lint && pnpm test` before each commit.
 
 ---
