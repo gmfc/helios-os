@@ -44,12 +44,13 @@ helios/
 │       ├─ pcb.ts
 │       └─ fdtable.ts
 ├─ apps/                 # userland programs
-│   ├─ echo.ts
-│   └─ cat.ts
+│   ├─ cli/programs/     # CLI utilities compiled into /bin
+│   └─ examples/         # sample GUI apps
 └─ ui/                   # React + xterm.js
 ```
 
 Core and apps are bundled with esbuild into a single JavaScript file that the host loads inside one V8 isolate.
+Built-in CLI programs are gathered by `tools/build-apps.ts` which writes `core/fs/generatedApps.ts`.
 
 ## Kernel State
 

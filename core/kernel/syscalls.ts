@@ -20,6 +20,11 @@ export type SyscallDispatcher = (
     ...args: unknown[]
 ) => Promise<unknown>;
 
+/**
+ * Generate a syscall dispatcher bound to the given PID. Each user program
+ * receives a dispatcher that validates the allowed syscall list before routing
+ * the call to the kernel implementation.
+ */
 export function createSyscallDispatcher(
     this: Kernel,
     pid: ProcessID,
@@ -99,6 +104,10 @@ export function createSyscallDispatcher(
     };
 }
 
+/**
+ * Open a file descriptor for a path. Permissions are checked against the
+ * calling process before delegating to the filesystem implementation.
+ */
 export async function syscall_open(
     this: Kernel,
     pcb: ProcessControlBlock,
@@ -145,6 +154,9 @@ export async function syscall_open(
     return fd;
 }
 
+/**
+ * Read bytes from an open file descriptor.
+ */
 export async function syscall_read(
     this: Kernel,
     pcb: ProcessControlBlock,
@@ -162,6 +174,9 @@ export async function syscall_read(
     return bytes;
 }
 
+/**
+ * Write data to an open file descriptor. fd 1 and 2 map to stdout/stderr.
+ */
 export async function syscall_write(
     this: Kernel,
     pcb: ProcessControlBlock,
@@ -199,6 +214,9 @@ export async function syscall_write(
     return data.length;
 }
 
+/**
+ * Close an open file descriptor.
+ */
 export async function syscall_close(
     this: Kernel,
     pcb: ProcessControlBlock,
@@ -223,6 +241,10 @@ export interface SpawnOptions {
     syscalls?: string[];
 }
 
+/**
+ * Create a new process from source code. The program is run inside its own V8
+ * isolate with quotas defined by {@link SpawnOptions}.
+ */
 export async function syscall_spawn(
     this: Kernel,
     code: string,
@@ -251,6 +273,9 @@ export async function syscall_spawn(
     return pid;
 }
 
+/**
+ * Terminate a process by PID. Sending signal 9 forcibly kills the isolate.
+ */
 export function syscall_kill(this: Kernel, pid: number, sig?: number): number {
     const pcb = this.state.processes.get(pid);
     if (!pcb || pid === this.initPid) {
@@ -268,6 +293,9 @@ export function syscall_kill(this: Kernel, pid: number, sig?: number): number {
     return 0;
 }
 
+/**
+ * Start listening on a TCP or UDP port and register the callback as a service.
+ */
 export function syscall_listen(
     this: Kernel,
     port: number,
@@ -283,6 +311,9 @@ export function syscall_listen(
     throw new Error("Unsupported protocol");
 }
 
+/**
+ * Open a TCP connection to the given address and return a socket id.
+ */
 export function syscall_connect(
     this: Kernel,
     ip: string,
@@ -291,6 +322,9 @@ export function syscall_connect(
     return this.state.tcp.connect(ip, port);
 }
 
+/**
+ * Send data over an established TCP socket.
+ */
 export async function syscall_tcp_send(
     this: Kernel,
     sock: number,
@@ -299,6 +333,9 @@ export async function syscall_tcp_send(
     return this.state.tcp.send(sock, data);
 }
 
+/**
+ * Send a UDP datagram.
+ */
 export async function syscall_udp_send(
     this: Kernel,
     sock: number,
@@ -307,6 +344,9 @@ export async function syscall_udp_send(
     return this.state.udp.send(sock, data);
 }
 
+/**
+ * Open a new window on the desktop with the provided HTML content.
+ */
 export function syscall_draw(
     this: Kernel,
     html: Uint8Array,
@@ -325,6 +365,7 @@ export function syscall_draw(
     return id;
 }
 
+/** Create a new directory with the given permissions. */
 export async function syscall_mkdir(
     this: Kernel,
     path: string,
@@ -334,6 +375,7 @@ export async function syscall_mkdir(
     return 0;
 }
 
+/** List files in a directory. */
 export async function syscall_readdir(
     this: Kernel,
     path: string,
@@ -341,6 +383,7 @@ export async function syscall_readdir(
     return this.state.fs.readdir(path);
 }
 
+/** Remove a file or directory. */
 export async function syscall_unlink(
     this: Kernel,
     path: string,
@@ -349,6 +392,7 @@ export async function syscall_unlink(
     return 0;
 }
 
+/** Rename a file or directory. */
 export async function syscall_rename(
     this: Kernel,
     oldPath: string,
@@ -358,6 +402,7 @@ export async function syscall_rename(
     return 0;
 }
 
+/** Mount a filesystem snapshot at the given path. */
 export async function syscall_mount(
     this: Kernel,
     image: FileSystemSnapshot,
@@ -367,6 +412,7 @@ export async function syscall_mount(
     return 0;
 }
 
+/** Unmount a previously mounted filesystem image. */
 export async function syscall_unmount(
     this: Kernel,
     path: string,
@@ -375,6 +421,7 @@ export async function syscall_unmount(
     return 0;
 }
 
+/** Adjust CPU and memory quotas for a process. */
 export function syscall_set_quota(
     this: Kernel,
     pcb: ProcessControlBlock,
@@ -390,6 +437,7 @@ export function syscall_set_quota(
     return { quotaMs: pcb.quotaMs, quotaMem: pcb.quotaMem };
 }
 
+/** Return a list of running processes with their resource usage. */
 export function syscall_ps(this: Kernel) {
     const list: Array<{
         pid: number;
@@ -412,6 +460,7 @@ export function syscall_ps(this: Kernel) {
     return list;
 }
 
+/** List background jobs tracked by the shell. */
 export function syscall_jobs(this: Kernel) {
     return Array.from(this.jobs.values());
 }

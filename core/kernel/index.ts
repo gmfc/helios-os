@@ -188,6 +188,11 @@ export class Kernel {
         this.readyQueue = [];
     }
 
+    /**
+     * Create a new kernel instance. If a saved snapshot exists it will be
+     * restored so services, windows and processes resume exactly where they
+     * were on the last shutdown.
+     */
     public static async create(): Promise<Kernel> {
         const full = await loadKernelSnapshot();
         if (full) {
@@ -480,6 +485,10 @@ export class Kernel {
         return JSON.parse(JSON.stringify(state, replacer));
     }
 
+    /**
+     * Run the scheduler loop until {@link stop} is called. Each process in the
+     * ready queue receives a time slice according to its quota.
+     */
     public async start(): Promise<void> {
         this.running = true;
         while (this.running) {
