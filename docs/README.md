@@ -8,6 +8,7 @@ This folder contains detailed guides covering each part of the project. Use the 
 - [Persistent File System Design](persistent_fs.md)
 - [Host Service](host.md)
 - [User Interface](ui.md)
+- [Theme Creation](themes.md)
 - [Developer Workflow](workflow.md)
 - [GUI, Shell and Sandbox Roadmap](gui_shell_sandbox.md)
 - [Contributor Guide](../CONTRIBUTING.md)

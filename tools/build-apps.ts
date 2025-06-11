@@ -24,6 +24,7 @@ const manifests: Record<string, any> = {
     sleep: { name: "sleep", syscalls: [] },
     ulimit: { name: "ulimit", syscalls: ["set_quota", "write"] },
     apt: { name: "apt", syscalls: ["open", "read", "write", "close", "mkdir"] },
+    themes: { name: "themes", syscalls: ["open", "write", "close", "mkdir"] },
     bash: {
         name: "bash",
         syscalls: [
@@ -71,6 +72,7 @@ const bundledOrder = [
     "snapshot",
     "ulimit",
     "apt",
+    "themes",
 ];
 
 function upper(name: string): string {
@@ -84,13 +86,13 @@ for (const file of readdirSync(programsDir)) {
         entryPoints: [path.join(programsDir, file)],
         platform: "node",
         format: "cjs",
-        bundle: false,
+        bundle: true,
         write: false,
         tsconfig,
     });
-    const code = res.outputFiles[0].text;
+    const code = res.outputFiles?.[0]?.text ?? "";
     const mod = { exports: {} as any };
-    vm.runInNewContext(code, { module: mod, exports: mod.exports });
+    vm.runInNewContext(code, { module: mod, exports: mod.exports, require });
     const fn = (mod.exports as any).main;
     if (typeof fn !== "function") {
         throw new Error(`No main function in ${file}`);
