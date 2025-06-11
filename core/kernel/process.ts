@@ -1,6 +1,6 @@
 // Process management utilities for the Helios-OS Kernel
 
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import type { SyscallDispatcher } from "./syscalls";
 import type { Kernel } from "./index";
 
