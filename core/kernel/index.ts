@@ -202,6 +202,7 @@ export class Kernel {
             ],
         };
         this.readyQueue = [];
+        eventBus.on("desktop.windowRecv", (payload) => this.handleWindowMessage(payload));
     }
 
     /**
@@ -466,6 +467,18 @@ export class Kernel {
         this.state = { ...this.state, monitors };
         eventBus.emit("desktop.updateMonitors", monitors);
         return 0;
+    }
+
+    private handleWindowMessage(payload: { id: number; data: any }): void {
+        const source = payload.id;
+        const owner = this.windowOwners.get(source);
+        if (owner === undefined) return;
+        const msg = payload.data as any;
+        if (!msg || typeof msg !== "object") return;
+        if (msg.source !== undefined && msg.source !== source) return;
+        const target = msg.target;
+        if (typeof target !== "number" || !this.windowOwners.has(target)) return;
+        eventBus.emit("desktop.windowPost", { id: target, data: msg });
     }
 
     public snapshot(): Snapshot {
