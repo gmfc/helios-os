@@ -27,4 +27,14 @@ describe("NIC syscalls", () => {
         list = kernelTest!.syscall_list_nics(k);
         assert(!list.find((n) => n.id === "eth0"), "interface removed");
     });
+
+    it("dhcp assigns unique ip", () => {
+        const k = kernelTest!.createKernel(new InMemoryFileSystem());
+        k.startNetworking();
+        kernelTest!.syscall_create_nic(k, "eth0", "AA:BB:CC:DD:EE:01");
+        kernelTest!.syscall_create_nic(k, "eth1", "AA:BB:CC:DD:EE:02");
+        const r1 = kernelTest!.syscall_dhcp_request(k, "eth0");
+        const r2 = kernelTest!.syscall_dhcp_request(k, "eth1");
+        assert(r1.ip !== r2.ip, "addresses must be unique");
+    });
 });

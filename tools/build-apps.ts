@@ -23,6 +23,10 @@ const manifests: Record<string, any> = {
     kill: { name: "kill", syscalls: ["kill", "jobs"] },
     sleep: { name: "sleep", syscalls: [] },
     ulimit: { name: "ulimit", syscalls: ["set_quota", "write"] },
+    dhclient: {
+        name: "dhclient",
+        syscalls: ["dhcp_request", "write"],
+    },
     ifconfig: {
         name: "ifconfig",
         syscalls: [
@@ -68,6 +72,7 @@ const bundledOrder = [
     "nano",
     "browser",
     "ping",
+    "dhclient",
     "ifconfig",
     "desktop",
     "startx",
