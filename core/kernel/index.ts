@@ -214,6 +214,8 @@ export class Kernel {
     private router = new Router();
     private ptys = new PtyManager();
     private dhcpNextHost = 2;
+    private readonly baseIdleDelay = 10;
+    private idleDelay = this.baseIdleDelay;
     private createProcess = createProcess;
     private cleanupProcess = cleanupProcess;
     private ensureProcRoot = ensureProcRoot;
@@ -743,9 +745,11 @@ export class Kernel {
             const queue = this.readyQueue.slice();
             this.readyQueue = [];
             if (queue.length === 0) {
-                await new Promise((r) => setTimeout(r, 1));
+                await new Promise((r) => setTimeout(r, this.idleDelay));
+                this.idleDelay = Math.min(this.idleDelay * 2, 1000);
                 continue;
             }
+            this.idleDelay = this.baseIdleDelay;
             for (const pcb of queue) {
                 await this.runProcess(pcb);
                 if (!pcb.exited) {
