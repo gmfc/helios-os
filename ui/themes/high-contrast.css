@@ -1,0 +1,28 @@
+/* High-Contrast theme using colour-blind safe palette */
+.window-container {
+    background-color: #000;
+    color: #fff;
+    border: 2px solid #fff;
+}
+.window-title-bar {
+    background: #000;
+    color: #fff;
+    border-bottom: 2px solid #fff;
+}
+.window-button:nth-child(1) { background-color: #D55E00; } /* Close */
+.window-button:nth-child(2) { background-color: #F0E442; } /* Minimize */
+.window-button:nth-child(3) { background-color: #009E73; } /* Maximize */
+.monitor-select {
+    background-color: #000;
+    color: #fff;
+    border: 2px solid #fff;
+}
+.window-content {
+    background-color: #000;
+    color: #fff;
+}
+.crash-overlay {
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+}
+

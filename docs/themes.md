@@ -12,3 +12,15 @@ themes select <name>
 
 The choice is stored in `/etc/theme` and read by the desktop program on startup.
 
+
+## Built-in example
+
+A colour-blind friendly high-contrast theme is provided at `ui/themes/high-contrast.css`.
+Copy this file and a `wallpaper.jpg` into `/opt/themes/high-contrast/` then run:
+
+```sh
+themes select high-contrast
+```
+
+The palette uses WCAG compliant contrast ratios.
+
