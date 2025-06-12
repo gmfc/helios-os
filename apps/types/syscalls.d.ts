@@ -35,6 +35,7 @@ export interface SyscallDispatcher {
     (call: "nic_config", id: string, ip: string, mask: string): Promise<number>;
     (call: "create_nic", id: string, mac: string, ip?: string, mask?: string): Promise<number>;
     (call: "remove_nic", id: string): Promise<number>;
+    (call: "dhcp_request", id: string): Promise<{ ip: string; netmask: string } | number>;
     (call: "reboot"): Promise<number>;
     (call: string, ...args: any[]): Promise<any>;
 }

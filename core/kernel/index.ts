@@ -22,7 +22,33 @@ import { eventBus } from "../utils/eventBus";
 import { NIC } from "../net/nic";
 import { TCP, TcpHandler } from "../net/tcp";
 import { UDP, UdpHandler } from "../net/udp";
+import { Router } from "../net/router";
 import { BASH_SOURCE } from "../fs/bin";
+
+function ipToInt(ip: string): number {
+    return ip
+        .split(".")
+        .map((o) => parseInt(o, 10))
+        .reduce((acc, octet) => (acc << 8) | (octet & 0xff), 0);
+}
+
+function maskBits(mask: string): number {
+    return mask
+        .split(".")
+        .map((o) => parseInt(o, 10))
+        .reduce((acc, octet) => acc + ((octet >>> 0).toString(2).match(/1/g)?.length || 0), 0);
+}
+
+function networkFrom(ip: string, mask: string): string {
+    const netInt = ipToInt(ip) & ipToInt(mask);
+    const parts = [
+        (netInt >>> 24) & 0xff,
+        (netInt >>> 16) & 0xff,
+        (netInt >>> 8) & 0xff,
+        netInt & 0xff,
+    ];
+    return `${parts.join(".")}/${maskBits(mask)}`;
+}
 
 interface TcpInternal {
     listeners: Map<number, TcpHandler>;
@@ -82,6 +108,7 @@ import {
     syscall_nic_config,
     syscall_create_nic,
     syscall_remove_nic,
+    syscall_dhcp_request,
 } from "./syscalls";
 
 type Program = {
@@ -160,6 +187,8 @@ export class Kernel {
     private nextJob = 1;
     private mountedVolumes: Map<string, string> = new Map();
     private windowOwners: Map<number, ProcessID> = new Map();
+    private router = new Router();
+    private dhcpNextHost = 2;
     private createProcess = createProcess;
     private cleanupProcess = cleanupProcess;
     private ensureProcRoot = ensureProcRoot;
@@ -198,6 +227,7 @@ export class Kernel {
     private syscall_nic_config = syscall_nic_config;
     private syscall_create_nic = syscall_create_nic;
     private syscall_remove_nic = syscall_remove_nic;
+    private syscall_dhcp_request = syscall_dhcp_request;
 
     private constructor(fs: AsyncFileSystem) {
         this.state = {
@@ -466,6 +496,9 @@ export class Kernel {
             n.rx = nic.rx ?? [];
             n.tx = nic.tx ?? [];
             this.state.nics.set(n.id, n);
+            if (n.ip && n.netmask) {
+                this.router.addRoute(networkFrom(n.ip, n.netmask), n);
+            }
         }
         this.pendingNics = null;
     }
@@ -704,6 +737,7 @@ export const kernelTest = (typeof vitest !== "undefined" || process.env.VITEST)
               mask?: string,
           ) => syscall_create_nic.call(k, id, mac, ip, mask),
           syscall_remove_nic: (k: Kernel, id: string) => syscall_remove_nic.call(k, id),
+          syscall_dhcp_request: (k: Kernel, id: string) => syscall_dhcp_request.call(k, id),
           addMonitor: (k: Kernel, w: number, h: number) => k.addMonitor(w, h),
           removeMonitor: (k: Kernel, id: number) => k.removeMonitor(id),
       }

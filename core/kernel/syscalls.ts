@@ -140,6 +140,8 @@ export function createSyscallDispatcher(
                 return this.syscall_create_nic(args[0], args[1], args[2], args[3]);
             case "remove_nic":
                 return this.syscall_remove_nic(args[0]);
+            case "dhcp_request":
+                return this.syscall_dhcp_request(args[0]);
             case "reboot":
                 return this.reboot();
             default:
@@ -656,4 +658,22 @@ export function syscall_remove_nic(this: Kernel, id: string) {
     if (!this.state.nics.has(id)) return -1;
     this.state.nics.delete(id);
     return 0;
+}
+
+/** Obtain an IP via DHCP */
+export function syscall_dhcp_request(this: Kernel, id: string) {
+    const nic = this.state.nics.get(id);
+    if (!nic) return -1;
+    let host = 2;
+    const used = new Set<string>();
+    for (const n of this.state.nics.values()) {
+        if (n.ip) used.add(n.ip);
+    }
+    while (used.has(`10.0.0.${host}`)) host++;
+    const ip = `10.0.0.${host}`;
+    const mask = "255.255.255.0";
+    nic.ip = ip;
+    nic.netmask = mask;
+    this.router.addRoute("10.0.0.0/24", nic);
+    return { ip, netmask: mask };
 }
