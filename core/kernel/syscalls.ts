@@ -16,6 +16,7 @@ import type { ProcessControlBlock, FileDescriptor, ProcessID } from "./process";
 import type { ServiceHandler } from "./index";
 import * as fs from "node:fs/promises";
 import pathModule from "node:path";
+import { getParentPath } from "../utils/path";
 
 function resolvePath(pcb: ProcessControlBlock, p: string): string {
     if (!p) return pcb.cwd;
@@ -564,6 +565,24 @@ export async function syscall_mkdir(
     perms: number,
 ): Promise<number> {
     const fullPath = resolvePath(pcb, path);
+    const parentPath = getParentPath(fullPath);
+    const parent = (this.state.fs as any).getNode(parentPath);
+    if (parent) {
+        const perm = parent.permissions;
+        let rights = 0;
+        if (pcb.uid === 0) {
+            rights = 7;
+        } else if (pcb.uid === parent.uid) {
+            rights = (perm >> 6) & 7;
+        } else if (pcb.gid === parent.gid) {
+            rights = (perm >> 3) & 7;
+        } else {
+            rights = perm & 7;
+        }
+        if (!(rights & 2)) {
+            throw new Error("EACCES: permission denied");
+        }
+    }
     await this.state.fs.mkdir(fullPath, perms);
     return 0;
 }
@@ -574,7 +593,25 @@ export async function syscall_readdir(
     pcb: ProcessControlBlock,
     path: string,
 ): Promise<FileSystemNode[]> {
-    return this.state.fs.readdir(resolvePath(pcb, path));
+    const fullPath = resolvePath(pcb, path);
+    const node = (this.state.fs as any).getNode(fullPath);
+    if (node) {
+        const perm = node.permissions;
+        let rights = 0;
+        if (pcb.uid === 0) {
+            rights = 7;
+        } else if (pcb.uid === node.uid) {
+            rights = (perm >> 6) & 7;
+        } else if (pcb.gid === node.gid) {
+            rights = (perm >> 3) & 7;
+        } else {
+            rights = perm & 7;
+        }
+        if (!(rights & 4)) {
+            throw new Error("EACCES: permission denied");
+        }
+    }
+    return this.state.fs.readdir(fullPath);
 }
 
 /** Remove a file or directory. */
@@ -583,7 +620,25 @@ export async function syscall_unlink(
     pcb: ProcessControlBlock,
     path: string,
 ): Promise<number> {
-    await this.state.fs.unlink(resolvePath(pcb, path));
+    const fullPath = resolvePath(pcb, path);
+    const node = (this.state.fs as any).getNode(fullPath);
+    if (node) {
+        const perm = node.permissions;
+        let rights = 0;
+        if (pcb.uid === 0) {
+            rights = 7;
+        } else if (pcb.uid === node.uid) {
+            rights = (perm >> 6) & 7;
+        } else if (pcb.gid === node.gid) {
+            rights = (perm >> 3) & 7;
+        } else {
+            rights = perm & 7;
+        }
+        if (!(rights & 2)) {
+            throw new Error("EACCES: permission denied");
+        }
+    }
+    await this.state.fs.unlink(fullPath);
     return 0;
 }
 
@@ -594,10 +649,25 @@ export async function syscall_rename(
     oldPath: string,
     newPath: string,
 ): Promise<number> {
-    await this.state.fs.rename(
-        resolvePath(pcb, oldPath),
-        resolvePath(pcb, newPath),
-    );
+    const oldFull = resolvePath(pcb, oldPath);
+    const node = (this.state.fs as any).getNode(oldFull);
+    if (node) {
+        const perm = node.permissions;
+        let rights = 0;
+        if (pcb.uid === 0) {
+            rights = 7;
+        } else if (pcb.uid === node.uid) {
+            rights = (perm >> 6) & 7;
+        } else if (pcb.gid === node.gid) {
+            rights = (perm >> 3) & 7;
+        } else {
+            rights = perm & 7;
+        }
+        if (!(rights & 2)) {
+            throw new Error("EACCES: permission denied");
+        }
+    }
+    await this.state.fs.rename(oldFull, resolvePath(pcb, newPath));
     return 0;
 }
 

@@ -3,6 +3,12 @@ import { describe, it, beforeEach, afterEach } from "vitest";
 import { createHash } from "node:crypto";
 import { Kernel, kernelTest } from "./kernel";
 import { InMemoryFileSystem } from "./fs";
+import {
+    syscall_mkdir,
+    syscall_unlink,
+    syscall_rename,
+    syscall_readdir,
+} from "./kernel/syscalls";
 import * as fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -430,5 +436,56 @@ describe("Kernel", () => {
             true,
             "process should exit when exceeding memory quota",
         );
+    });
+
+    it("permission checks on readdir", async () => {
+        const permKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        kernelTest!.getState(permKernel).fs.createDirectory("/secret", 0o700);
+        const pid = kernelTest!.createProcess(permKernel);
+        const pcb = kernelTest!.getState(permKernel).processes.get(pid)!;
+        try {
+            await syscall_readdir.call(permKernel, pcb, "/secret");
+            assert.fail("should not list directory");
+        } catch (e: any) {
+            assert(e.message.includes("EACCES"), "EACCES expected");
+        }
+    });
+
+    it("permission checks on unlink and rename", async () => {
+        const permKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        kernelTest!.getState(permKernel).fs.createDirectory("/secret", 0o700);
+        kernelTest!.getState(permKernel).fs.createFile("/secret/file.txt", "data", 0o600);
+        const pid = kernelTest!.createProcess(permKernel);
+        const pcb = kernelTest!.getState(permKernel).processes.get(pid)!;
+        try {
+            await syscall_unlink.call(permKernel, pcb, "/secret/file.txt");
+            assert.fail("unlink should fail");
+        } catch (e: any) {
+            assert(e.message.includes("EACCES"), "EACCES expected");
+        }
+        try {
+            await syscall_rename.call(
+                permKernel,
+                pcb,
+                "/secret/file.txt",
+                "/secret/file2.txt",
+            );
+            assert.fail("rename should fail");
+        } catch (e: any) {
+            assert(e.message.includes("EACCES"), "EACCES expected");
+        }
+    });
+
+    it("permission checks on mkdir", async () => {
+        const permKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        kernelTest!.getState(permKernel).fs.createDirectory("/secret", 0o700);
+        const pid = kernelTest!.createProcess(permKernel);
+        const pcb = kernelTest!.getState(permKernel).processes.get(pid)!;
+        try {
+            await syscall_mkdir.call(permKernel, pcb, "/secret/new", 0o755);
+            assert.fail("mkdir should fail");
+        } catch (e: any) {
+            assert(e.message.includes("EACCES"), "EACCES expected");
+        }
     });
 });
