@@ -109,6 +109,8 @@ import {
     syscall_create_nic,
     syscall_remove_nic,
     syscall_dhcp_request,
+    syscall_route_add,
+    syscall_route_del,
 } from "./syscalls";
 
 type Program = {
@@ -154,6 +156,7 @@ export interface Snapshot {
     tcp: unknown;
     udp: unknown;
     services: unknown;
+    routes: unknown;
     initPid: number | null;
     monitors: Monitor[];
 }
@@ -170,6 +173,7 @@ export interface KernelState {
     udp: UDP;
     windows: Array<{ html: Uint8Array; opts: WindowOpts }>;
     services: Map<string, { port: number; proto: string }>;
+    routes: Map<string, string>;
     monitors: Monitor[];
 }
 
@@ -228,6 +232,8 @@ export class Kernel {
     private syscall_create_nic = syscall_create_nic;
     private syscall_remove_nic = syscall_remove_nic;
     private syscall_dhcp_request = syscall_dhcp_request;
+    private syscall_route_add = syscall_route_add;
+    private syscall_route_del = syscall_route_del;
 
     private constructor(fs: AsyncFileSystem) {
         this.state = {
@@ -239,6 +245,7 @@ export class Kernel {
             udp: new UDP(),
             windows: [],
             services: new Map(),
+            routes: new Map(),
             monitors: [
                 { width: 800, height: 600, x: 0, y: 0 },
             ],
@@ -364,6 +371,7 @@ export class Kernel {
             });
         }
         kernel.state.services = new Map(parsed.services ?? []);
+        kernel.state.routes = new Map(parsed.routes ?? []);
         kernel.initPid = parsed.initPid ?? null;
 
         kernel.pendingNics = parsed.nics
@@ -496,9 +504,10 @@ export class Kernel {
             n.rx = nic.rx ?? [];
             n.tx = nic.tx ?? [];
             this.state.nics.set(n.id, n);
-            if (n.ip && n.netmask) {
-                this.router.addRoute(networkFrom(n.ip, n.netmask), n);
-            }
+        }
+        for (const [cidr, id] of this.state.routes.entries()) {
+            const nic = this.state.nics.get(id);
+            if (nic) this.router.addRoute(cidr, nic);
         }
         this.pendingNics = null;
     }
@@ -606,6 +615,7 @@ export class Kernel {
             tcp: this.state.tcp,
             udp: this.state.udp,
             services: this.state.services,
+            routes: this.state.routes,
             initPid: this.initPid,
             monitors: this.state.monitors,
         };
@@ -738,6 +748,11 @@ export const kernelTest = (typeof vitest !== "undefined" || process.env.VITEST)
           ) => syscall_create_nic.call(k, id, mac, ip, mask),
           syscall_remove_nic: (k: Kernel, id: string) => syscall_remove_nic.call(k, id),
           syscall_dhcp_request: (k: Kernel, id: string) => syscall_dhcp_request.call(k, id),
+          syscall_route_add: (k: Kernel, cidr: string, nic: string) =>
+              syscall_route_add.call(k, cidr, nic),
+          syscall_route_del: (k: Kernel, cidr: string) =>
+              syscall_route_del.call(k, cidr),
+          getRouter: (k: Kernel) => (k as any).router as Router,
           addMonitor: (k: Kernel, w: number, h: number) => k.addMonitor(w, h),
           removeMonitor: (k: Kernel, id: number) => k.removeMonitor(id),
       }

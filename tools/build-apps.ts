@@ -27,6 +27,7 @@ const manifests: Record<string, any> = {
         name: "dhclient",
         syscalls: ["dhcp_request", "write"],
     },
+    route: { name: "route", syscalls: ["route_add", "route_del", "write"] },
     ifconfig: {
         name: "ifconfig",
         syscalls: [
@@ -73,6 +74,7 @@ const bundledOrder = [
     "browser",
     "ping",
     "dhclient",
+    "route",
     "ifconfig",
     "desktop",
     "startx",

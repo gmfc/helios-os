@@ -20,6 +20,7 @@ export const PING_SOURCE = "async function main(syscall, argv) {\n  const STDOUT
 export const PS_SOURCE = "async function main(syscall) {\n  const STDOUT_FD = 1;\n  const encode = (s) => new TextEncoder().encode(s);\n  const procs = await syscall(\"ps\");\n  const totalCpu = procs.reduce((n, p) => n + (p.cpuMs || 0), 0);\n  const totalMem = procs.reduce((n, p) => n + (p.memBytes || 0), 0);\n  let lines = \"PID %CPU %MEM TTY COMMAND\\n\";\n  for (const p of procs) {\n    const cpu = totalCpu ? ((p.cpuMs || 0) / totalCpu * 100).toFixed(1) : \"0.0\";\n    const mem = totalMem ? ((p.memBytes || 0) / totalMem * 100).toFixed(1) : \"0.0\";\n    const tty = p.tty ? p.tty : \"?\";\n    const cmd = p.argv ? p.argv.join(\" \") : \"\";\n    lines += p.pid + \" \" + cpu + \" \" + mem + \" \" + tty + \" \" + cmd + \"\\n\";\n  }\n  await syscall(\"write\", STDOUT_FD, encode(lines));\n  return 0;\n}";
 export const REBOOT_SOURCE = "async function main(syscall) {\n  await syscall(\"reboot\");\n  return 0;\n}";
 export const RM_SOURCE = "async function main(syscall, argv) {\n  const STDERR_FD = 2;\n  const encode = (s) => new TextEncoder().encode(s);\n  if (argv.length === 0) {\n    await syscall(\"write\", STDERR_FD, encode(\"rm: missing operand\\n\"));\n    return 1;\n  }\n  try {\n    await syscall(\"unlink\", argv[0]);\n  } catch (e) {\n    const msg = e instanceof Error ? e.message : String(e);\n    await syscall(\"write\", STDERR_FD, encode(\"rm: \" + msg + \"\\n\"));\n    return 1;\n  }\n  return 0;\n}";
+export const ROUTE_SOURCE = "async function main(syscall, argv) {\n  const STDOUT_FD = 1;\n  const STDERR_FD = 2;\n  const enc = (s) => new TextEncoder().encode(s);\n  if (argv.length < 2) {\n    await syscall(\"write\", STDERR_FD, enc(\"usage: route <add|del> <cidr> [nic]\\n\"));\n    return 1;\n  }\n  const action = argv[0];\n  const cidr = argv[1];\n  if (action === \"add\") {\n    if (argv.length !== 3) {\n      await syscall(\"write\", STDERR_FD, enc(\"usage: route add <cidr> <nic>\\n\"));\n      return 1;\n    }\n    const nic = argv[2];\n    const res = await syscall(\"route_add\", cidr, nic);\n    if (typeof res === \"number\" && res < 0) {\n      await syscall(\"write\", STDERR_FD, enc(\"route: failed\\n\"));\n      return 1;\n    }\n    return 0;\n  }\n  if (action === \"del\") {\n    const res = await syscall(\"route_del\", cidr);\n    if (typeof res === \"number\" && res < 0) {\n      await syscall(\"write\", STDERR_FD, enc(\"route: failed\\n\"));\n      return 1;\n    }\n    return 0;\n  }\n  await syscall(\"write\", STDERR_FD, enc(\"route: unknown action\\n\"));\n  return 1;\n}";
 export const SLEEP_SOURCE = "async function main(_syscall, argv) {\n  const ms = parseInt(argv[0] || \"1\", 10) * 1e3;\n  await new Promise((r) => setTimeout(r, ms));\n  return 0;\n}";
 export const SNAPSHOT_SOURCE = "async function main(syscall, argv) {\n  const STDERR_FD = 2;\n  const encode = (s) => new TextEncoder().encode(s);\n  if (argv.length < 2) {\n    await syscall(\"write\", STDERR_FD, encode(\"usage: snapshot <save|load> <name>\\n\"));\n    return 1;\n  }\n  const action = argv[0];\n  const name = argv[1];\n  if (action === \"save\") {\n    const snap = await syscall(\"snapshot\");\n    await syscall(\"save_snapshot_named\", name, snap);\n    return 0;\n  }\n  if (action === \"load\") {\n    await syscall(\"load_snapshot_named\", name);\n    await syscall(\"reboot\");\n    return 0;\n  }\n  await syscall(\"write\", STDERR_FD, encode(\"snapshot: unknown action\\n\"));\n  return 1;\n}";
 export const STARTX_SOURCE = "async function main(syscall) {\n  const STDERR_FD = 2;\n  const encode = (s) => new TextEncoder().encode(s);\n  const decode = (b) => new TextDecoder().decode(b);\n  async function readFile(path) {\n    const fd = await syscall(\"open\", path, \"r\");\n    let out = \"\";\n    while (true) {\n      const chunk = await syscall(\"read\", fd, 1024);\n      if (chunk.length === 0)\n        break;\n      out += decode(chunk);\n    }\n    await syscall(\"close\", fd);\n    return out;\n  }\n  try {\n    const code = await readFile(\"/bin/desktop\");\n    let manifest;\n    try {\n      manifest = JSON.parse(\n        await readFile(\"/bin/desktop.manifest.json\")\n      );\n    } catch {\n    }\n    await syscall(\"spawn\", code, {\n      argv: [],\n      syscalls: manifest ? manifest.syscalls : void 0\n    });\n  } catch {\n    await syscall(\"write\", STDERR_FD, encode(\"startx: failed to launch desktop\\n\"));\n    return 1;\n  }\n  return 0;\n}";
@@ -188,6 +189,14 @@ export const RM_MANIFEST = JSON.stringify({
         "write"
     ]
 });
+export const ROUTE_MANIFEST = JSON.stringify({
+    "name": "route",
+    "syscalls": [
+        "route_add",
+        "route_del",
+        "write"
+    ]
+});
 export const SLEEP_MANIFEST = JSON.stringify({
     "name": "sleep",
     "syscalls": []
@@ -234,6 +243,7 @@ export const BUNDLED_APPS = new Map<string, string>([
     ["browser", BROWSER_SOURCE],
     ["ping", PING_SOURCE],
     ["dhclient", DHCLIENT_SOURCE],
+    ["route", ROUTE_SOURCE],
     ["ifconfig", IFCONFIG_SOURCE],
     ["desktop", DESKTOP_SOURCE],
     ["startx", STARTX_SOURCE],
