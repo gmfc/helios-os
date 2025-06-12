@@ -20,6 +20,7 @@ export * from "./cli/programs/ulimit";
 export * from "./cli/programs/xrandr";
 export * from "./cli/programs/route";
 export * from "./cli/programs/bugreport";
+export * from "./cli/programs/tutorial";
 
 export { BUNDLED_APPS } from "../core/fs/generatedApps";
 export type { SyscallDispatcher } from "./types/syscalls";

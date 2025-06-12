@@ -46,6 +46,33 @@ export async function main(syscall: SyscallDispatcher): Promise<number> {
     await readLine(tty);
     await syscall("write", tty, encode("password: "));
     await readLine(tty);
+
+    let firstBoot = false;
+    try {
+        const fd = await syscall("open", "/var/state/firstboot", "r");
+        await syscall("close", fd);
+    } catch {
+        firstBoot = true;
+    }
+
+    if (firstBoot) {
+        await syscall(
+            "write",
+            tty,
+            encode(
+                "Welcome to Helios-OS! Type 'help' or check the man pages. Run 'tutorial' for a quick tour.\n",
+            ),
+        );
+        try {
+            await syscall("mkdir", "/var", 0o755);
+        } catch {}
+        try {
+            await syscall("mkdir", "/var/state", 0o755);
+        } catch {}
+        const fd = await syscall("open", "/var/state/firstboot", "w");
+        await syscall("write", fd, encode("done\n"));
+        await syscall("close", fd);
+    }
     await syscall("close", tty);
 
     try {
