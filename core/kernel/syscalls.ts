@@ -746,6 +746,7 @@ export function syscall_set_quota(
     pcb: ProcessControlBlock,
     ms?: number,
     mem?: number,
+    total?: number,
 ) {
     if (typeof ms === "number" && !isNaN(ms)) {
         pcb.quotaMs = ms;
@@ -753,7 +754,14 @@ export function syscall_set_quota(
     if (typeof mem === "number" && !isNaN(mem)) {
         pcb.quotaMem = mem;
     }
-    return { quotaMs: pcb.quotaMs, quotaMem: pcb.quotaMem };
+    if (typeof total === "number" && !isNaN(total)) {
+        pcb.quotaMs_total = total;
+    }
+    return {
+        quotaMs: pcb.quotaMs,
+        quotaMs_total: pcb.quotaMs_total,
+        quotaMem: pcb.quotaMem,
+    };
 }
 
 /** Return a list of running processes with their resource usage. */
