@@ -40,6 +40,8 @@ const manifests: Record<string, any> = {
             "write",
         ],
     },
+    sendmail: { name: "sendmail", syscalls: ["connect", "write"] },
+    mail: { name: "mail", syscalls: ["connect", "write"] },
     apt: { name: "apt", syscalls: ["open", "read", "write", "close", "mkdir"] },
     themes: { name: "themes", syscalls: ["open", "write", "close", "mkdir"] },
     bash: {
@@ -80,6 +82,8 @@ const bundledOrder = [
     "dhclient",
     "route",
     "ifconfig",
+    "sendmail",
+    "mail",
     "desktop",
     "startx",
     "ls",
