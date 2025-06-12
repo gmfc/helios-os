@@ -58,7 +58,7 @@ User programs interact with the kernel through an asynchronous syscall dispatche
 | `close(fd)` | close a file descriptor |
 | `spawn(code, opts)` | start a new process |
 | `listen(port, proto, cb)` | register a network service |
-| `connect(ip, port)` | obtain a socket handle |
+| `connect(ip, port)` | open a socket connection |
 | `tcp_send(sock, bytes)` | send data over TCP |
 | `udp_send(sock, bytes)` | send data over UDP |
 | `draw(html, opts)` | open a GUI window |

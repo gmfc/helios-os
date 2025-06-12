@@ -1,6 +1,12 @@
 import type { FileSystemNode, FileSystemSnapshot } from "../../core/fs";
 import type { ProcessID, FileDescriptor } from "../../core/kernel/process";
-import type { WindowOpts, ServiceHandler, Snapshot } from "../../core/kernel";
+import type {
+    WindowOpts,
+    ServiceHandler,
+    Snapshot,
+    TcpConnection,
+    UdpConnection,
+} from "../../core/kernel";
 
 export interface SyscallDispatcher {
     (call: "open", path: string, flags: string): Promise<FileDescriptor>;
@@ -9,9 +15,9 @@ export interface SyscallDispatcher {
     (call: "close", fd: FileDescriptor): Promise<number>;
     (call: "spawn", code: string, opts?: any): Promise<ProcessID>;
     (call: "listen", port: number, proto: string, cb: ServiceHandler): Promise<number>;
-    (call: "connect", ip: string, port: number): Promise<number>;
-    (call: "udp_connect", ip: string, port: number): Promise<number>;
-    (call: "tcp_send" | "udp_send", sock: number, data: Uint8Array): Promise<number>;
+    (call: "connect", ip: string, port: number): Promise<TcpConnection>;
+    (call: "udp_connect", ip: string, port: number): Promise<UdpConnection>;
+    (call: "tcp_send" | "udp_send", sock: TcpConnection | UdpConnection, data: Uint8Array): Promise<number>;
     (call: "draw", html: Uint8Array, opts: WindowOpts): Promise<number>;
     (call: "mkdir", path: string, perms: number): Promise<number>;
     (call: "readdir", path: string): Promise<FileSystemNode[]>;

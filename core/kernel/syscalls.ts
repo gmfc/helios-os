@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { eventBus } from "../utils/eventBus";
 import { NIC } from "../net/nic";
-import { TCP } from "../net/tcp";
-import { UDP } from "../net/udp";
+import { TCP, TcpConnection } from "../net/tcp";
+import { UDP, UdpConnection } from "../net/udp";
 import { BASH_SOURCE } from "../fs/bin";
 import {
     persistKernelSnapshot,
@@ -364,10 +364,10 @@ export function syscall_listen(
     cb: ServiceHandler,
 ): number {
     if (proto === "tcp") {
-        return this.state.tcp.listen(port, cb);
+        return this.state.tcp.listen(port, cb as any);
     }
     if (proto === "udp") {
-        return this.state.udp.listen(port, cb);
+        return this.state.udp.listen(port, cb as any);
     }
     throw new Error("Unsupported protocol");
 }
@@ -379,7 +379,7 @@ export function syscall_connect(
     this: Kernel,
     ip: string,
     port: number,
-): number {
+): TcpConnection {
     return this.state.tcp.connect(ip, port);
 }
 
@@ -390,7 +390,7 @@ export function syscall_udp_connect(
     this: Kernel,
     ip: string,
     port: number,
-): number {
+): UdpConnection {
     return this.state.udp.connect(ip, port);
 }
 
@@ -399,10 +399,11 @@ export function syscall_udp_connect(
  */
 export async function syscall_tcp_send(
     this: Kernel,
-    sock: number,
+    sock: TcpConnection,
     data: Uint8Array,
 ) {
-    return this.state.tcp.send(sock, data);
+    sock.write(data);
+    return 0;
 }
 
 /**
@@ -410,10 +411,11 @@ export async function syscall_tcp_send(
  */
 export async function syscall_udp_send(
     this: Kernel,
-    sock: number,
+    sock: UdpConnection,
     data: Uint8Array,
 ) {
-    return this.state.udp.send(sock, data);
+    sock.write(data);
+    return 0;
 }
 
 /** Add a monitor to the display configuration. */

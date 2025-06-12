@@ -1,4 +1,4 @@
-import { Kernel, ServiceHandler } from "../kernel";
+import { Kernel, UdpConnection } from "../kernel";
 
 export interface PingOptions {
     port?: number;
@@ -6,7 +6,12 @@ export interface PingOptions {
 
 export function startPingService(kernel: Kernel, opts: PingOptions = {}): void {
     const port = opts.port ?? 0;
-    const handler: ServiceHandler = async (data) => data;
-    kernel.registerService(`pingd:${port}`, port, "udp", handler);
+    kernel.registerService(`pingd:${port}`, port, "udp", {
+        onConnect(conn: UdpConnection) {
+            conn.onData((data) => {
+                conn.write(data);
+            });
+        },
+    });
 }
 

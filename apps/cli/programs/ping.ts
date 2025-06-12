@@ -7,14 +7,18 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     const ip = argv[0] || "127.0.0.1";
     const port = argv[1] ? parseInt(argv[1], 10) : 0;
     try {
-        const sock = await syscall("udp_connect", ip, port);
+        const conn = await syscall("udp_connect", ip, port);
         const start = Date.now();
-        const resp = await syscall("udp_send", sock, encode("ping"));
+        let responded = false;
+        conn.onData(() => {
+            responded = true;
+        });
+        conn.write(encode("ping"));
         const end = Date.now();
-        if (resp) {
-            await syscall('write', STDOUT_FD, encode('pong ' + (end - start) + 'ms\n'));
+        if (responded) {
+            await syscall("write", STDOUT_FD, encode("pong " + (end - start) + "ms\n"));
         } else {
-            await syscall('write', STDERR_FD, encode('no response\n'));
+            await syscall("write", STDERR_FD, encode("no response\n"));
         }
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
