@@ -104,6 +104,13 @@ export class InMemoryFileSystem implements AsyncFileSystem {
         this.createDirectory("/etc", 0o755);
         this.createFile("/etc/issue", "Welcome to Helios-OS v0.1\n", 0o644);
 
+        this.createDirectory("/dev", 0o755);
+        this.createFile("/dev/tty0", new Uint8Array(), 0o666);
+        this.createFile("/dev/tty1", new Uint8Array(), 0o666);
+        this.createFile("/dev/pty0", new Uint8Array(), 0o666);
+        this.createFile("/dev/pty1", new Uint8Array(), 0o666);
+        this.createVirtualFile("/dev/ptmx", () => new Uint8Array(), 0o666);
+
         this.createDirectory("/bin", 0o755);
         this.createFile("/bin/cat", CAT_SOURCE, 0o755);
         this.createFile("/bin/cat.manifest.json", CAT_MANIFEST, 0o644);
@@ -140,7 +147,14 @@ export class InMemoryFileSystem implements AsyncFileSystem {
         this.createFile("/bin/bash", BASH_SOURCE, 0o755);
         this.createFile("/bin/bash.manifest.json", BASH_MANIFEST, 0o644);
 
-        const bundled = (globalThis as { BUNDLED_DISK_IMAGES?: Array<{ image: FileSystemSnapshot; path: string }> }).BUNDLED_DISK_IMAGES;
+        const bundled = (
+            globalThis as {
+                BUNDLED_DISK_IMAGES?: Array<{
+                    image: FileSystemSnapshot;
+                    path: string;
+                }>;
+            }
+        ).BUNDLED_DISK_IMAGES;
         if (bundled) {
             for (const m of bundled) {
                 try {
