@@ -101,6 +101,10 @@ const manifests: Record<string, any> = {
         syscalls: ["listen", "open", "write", "mkdir", "close"],
         allowNode: true,
     },
+    bugreport: {
+        name: "bugreport",
+        syscalls: ["open", "read", "write", "close", "readdir", "mkdir"],
+    },
     bash: {
         name: "bash",
         syscalls: [
@@ -163,6 +167,7 @@ const bundledOrder = [
     "httpd",
     "ftpd",
     "smtp",
+    "bugreport",
 ];
 
 function upper(name: string): string {
