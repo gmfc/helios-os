@@ -142,6 +142,10 @@ export function createSyscallDispatcher(
                 return this.syscall_remove_nic(args[0]);
             case "dhcp_request":
                 return this.syscall_dhcp_request(args[0]);
+            case "route_add":
+                return this.syscall_route_add(args[0], args[1]);
+            case "route_del":
+                return this.syscall_route_del(args[0]);
             case "reboot":
                 return this.reboot();
             default:
@@ -674,6 +678,24 @@ export function syscall_dhcp_request(this: Kernel, id: string) {
     const mask = "255.255.255.0";
     nic.ip = ip;
     nic.netmask = mask;
+    this.state.routes.set("10.0.0.0/24", id);
     this.router.addRoute("10.0.0.0/24", nic);
     return { ip, netmask: mask };
+}
+
+/** Add a route */
+export function syscall_route_add(this: Kernel, cidr: string, nicId: string) {
+    const nic = this.state.nics.get(nicId);
+    if (!nic) return -1;
+    this.state.routes.set(cidr, nicId);
+    this.router.addRoute(cidr, nic);
+    return 0;
+}
+
+/** Delete a route */
+export function syscall_route_del(this: Kernel, cidr: string) {
+    if (!this.state.routes.has(cidr)) return -1;
+    this.state.routes.delete(cidr);
+    this.router.removeRoute(cidr);
+    return 0;
 }

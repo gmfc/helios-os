@@ -24,6 +24,14 @@ export class Router {
         this.routes.push({ net, mask, nic });
     }
 
+    removeRoute(network: string) {
+        const [ipStr, maskStr] = network.split("/");
+        const maskBits = parseInt(maskStr, 10);
+        const mask = maskBits === 0 ? 0 : 0xffffffff << (32 - maskBits);
+        const net = ipToInt(ipStr) & mask;
+        this.routes = this.routes.filter((r) => r.net !== net || r.mask !== mask);
+    }
+
     forward(frame: Frame) {
         const dst = ipToInt(frame.dst);
         for (const r of this.routes) {
