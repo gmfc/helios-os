@@ -24,6 +24,28 @@ const Terminal = forwardRef<TerminalHandles, TerminalProps>(({ kernel }, ref) =>
     const fitAddonRef = useRef<FitAddon | null>(null);
     const [commandLine, setCommandLine] = useState("");
     const [isBusy, setIsBusy] = useState(false);
+    const [fontFamily, setFontFamily] = useState("monospace");
+    const [fontSize, setFontSize] = useState(14);
+    const keymapRef = useRef<Record<string, number>>({});
+
+    useEffect(() => {
+        async function loadSettings() {
+            try {
+                const fs = (kernel as any).state.fs as any;
+                const data: Uint8Array = await fs.read("/etc/input.json");
+                const text = new TextDecoder().decode(data);
+                const cfg = JSON.parse(text) as {
+                    fontFamily?: string;
+                    fontSize?: number;
+                    keymap?: Record<string, number>;
+                };
+                if (cfg.fontFamily) setFontFamily(cfg.fontFamily);
+                if (cfg.fontSize) setFontSize(cfg.fontSize);
+                if (cfg.keymap) keymapRef.current = cfg.keymap;
+            } catch {}
+        }
+        loadSettings();
+    }, [kernel]);
 
     useEffect(() => {
         const term = xtermRef.current?.terminal;
@@ -53,6 +75,11 @@ const Terminal = forwardRef<TerminalHandles, TerminalProps>(({ kernel }, ref) =>
                 pasteText().then((text) => {
                     if (text) term.paste(text);
                 });
+                return false;
+            }
+            const code = keymapRef.current[ev.key];
+            if (code) {
+                term.write(String.fromCharCode(code));
                 return false;
             }
             return true;
@@ -114,7 +141,13 @@ const Terminal = forwardRef<TerminalHandles, TerminalProps>(({ kernel }, ref) =>
     return (
         <XTerm
             ref={xtermRef}
-            options={{ theme: TERMINAL_THEME, cursorBlink: true, convertEol: true }}
+            options={{
+                theme: TERMINAL_THEME,
+                cursorBlink: true,
+                convertEol: true,
+                fontFamily,
+                fontSize,
+            }}
             onData={onData}
         />
     );

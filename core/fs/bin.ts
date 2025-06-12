@@ -17,6 +17,8 @@ import { main as psMain } from "../../apps/cli/programs/ps";
 import { main as killMain } from "../../apps/cli/programs/kill";
 import { main as sleepMain } from "../../apps/cli/programs/sleep";
 import { main as ulimitMain } from "../../apps/cli/programs/ulimit";
+import { main as setfontMain } from "../../apps/cli/programs/setfont";
+import { main as keymapMain } from "../../apps/cli/programs/keymap";
 import { main as bashMain } from "../../apps/cli/programs/bash";
 import { main as loginMain } from "../../apps/cli/programs/login";
 import { main as initMain } from "../../apps/cli/programs/init";
@@ -38,6 +40,8 @@ const PS_SOURCE = psMain.toString();
 const KILL_SOURCE = killMain.toString();
 const SLEEP_SOURCE = sleepMain.toString();
 const ULIMIT_SOURCE = ulimitMain.toString();
+const SETFONT_SOURCE = setfontMain.toString();
+const KEYMAP_SOURCE = keymapMain.toString();
 const BASH_SOURCE = bashMain.toString();
 const LOGIN_SOURCE = loginMain.toString();
 const INIT_SOURCE = initMain.toString();
@@ -119,6 +123,16 @@ export const ULIMIT_MANIFEST = JSON.stringify({
     syscalls: ["set_quota", "write"],
 });
 
+export const SETFONT_MANIFEST = JSON.stringify({
+    name: "setfont",
+    syscalls: ["open", "read", "write", "close", "mkdir"],
+});
+
+export const KEYMAP_MANIFEST = JSON.stringify({
+    name: "keymap",
+    syscalls: ["open", "read", "write", "close", "mkdir"],
+});
+
 export const BASH_MANIFEST = JSON.stringify({
     name: "bash",
     syscalls: [
@@ -175,6 +189,8 @@ export const BUNDLED_APPS = new Map<string, string>([
     ["init", INIT_SOURCE],
     ["login", LOGIN_SOURCE],
     ["bash", BASH_SOURCE],
+    ["setfont", SETFONT_SOURCE],
+    ["keymap", KEYMAP_SOURCE],
     ["snapshot", SNAPSHOT_SOURCE],
     ["ulimit", ULIMIT_SOURCE],
 ]);
@@ -195,6 +211,8 @@ export {
     KILL_SOURCE,
     SLEEP_SOURCE,
     ULIMIT_SOURCE,
+    SETFONT_SOURCE,
+    KEYMAP_SOURCE,
     BASH_SOURCE,
     LOGIN_SOURCE,
     INIT_SOURCE,

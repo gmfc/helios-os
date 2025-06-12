@@ -61,6 +61,8 @@ const manifests: Record<string, any> = {
     mail: { name: "mail", syscalls: ["connect", "write"] },
     apt: { name: "apt", syscalls: ["open", "read", "write", "close", "mkdir"] },
     themes: { name: "themes", syscalls: ["open", "write", "close", "mkdir"] },
+    setfont: { name: "setfont", syscalls: ["open", "read", "write", "close", "mkdir"] },
+    keymap: { name: "keymap", syscalls: ["open", "read", "write", "close", "mkdir"] },
     service: {
         name: "service",
         syscalls: [
@@ -80,6 +82,7 @@ const manifests: Record<string, any> = {
     httpd: {
         name: "httpd",
         syscalls: ["listen", "open", "read", "write", "close"],
+        allowNode: true,
     },
     ftpd: {
         name: "ftpd",
@@ -96,6 +99,7 @@ const manifests: Record<string, any> = {
     smtp: {
         name: "smtp",
         syscalls: ["listen", "open", "write", "mkdir", "close"],
+        allowNode: true,
     },
     bash: {
         name: "bash",
@@ -152,6 +156,8 @@ const bundledOrder = [
     "ulimit",
     "apt",
     "themes",
+    "setfont",
+    "keymap",
     "service",
     "ssh",
     "httpd",
