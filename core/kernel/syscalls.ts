@@ -128,6 +128,18 @@ export function createSyscallDispatcher(
                 return this.syscall_list_services();
             case "stop_service":
                 return this.syscall_stop_service(args[0]);
+            case "list_nics":
+                return this.syscall_list_nics();
+            case "nic_up":
+                return this.syscall_nic_up(args[0]);
+            case "nic_down":
+                return this.syscall_nic_down(args[0]);
+            case "nic_config":
+                return this.syscall_nic_config(args[0], args[1], args[2]);
+            case "create_nic":
+                return this.syscall_create_nic(args[0], args[1], args[2], args[3]);
+            case "remove_nic":
+                return this.syscall_remove_nic(args[0]);
             case "reboot":
                 return this.reboot();
             default:
@@ -580,5 +592,68 @@ export function syscall_list_services(this: Kernel) {
 /** Stop a service by name. */
 export function syscall_stop_service(this: Kernel, name: string) {
     this.stopService(name);
+    return 0;
+}
+
+/** List network interfaces */
+export function syscall_list_nics(this: Kernel) {
+    return Array.from(this.state.nics.values()).map((n) => ({
+        id: n.id,
+        mac: n.mac,
+        ip: n.ip,
+        netmask: n.netmask,
+        status: n.status,
+        ssid: n.ssid,
+    }));
+}
+
+/** Bring a NIC up */
+export function syscall_nic_up(this: Kernel, id: string) {
+    const nic = this.state.nics.get(id);
+    if (!nic) return -1;
+    nic.status = "up";
+    return 0;
+}
+
+/** Bring a NIC down */
+export function syscall_nic_down(this: Kernel, id: string) {
+    const nic = this.state.nics.get(id);
+    if (!nic) return -1;
+    nic.status = "down";
+    return 0;
+}
+
+/** Configure IP and netmask */
+export function syscall_nic_config(
+    this: Kernel,
+    id: string,
+    ip: string,
+    mask: string,
+) {
+    const nic = this.state.nics.get(id);
+    if (!nic) return -1;
+    nic.ip = ip;
+    nic.netmask = mask;
+    return 0;
+}
+
+/** Create a NIC */
+export function syscall_create_nic(
+    this: Kernel,
+    id: string,
+    mac: string,
+    ip?: string,
+    mask?: string,
+) {
+    if (this.state.nics.has(id)) return -1;
+    const nic = new NIC(id, mac, ip, mask);
+    this.state.nics.set(id, nic);
+    return 0;
+}
+
+/** Remove a NIC */
+export function syscall_remove_nic(this: Kernel, id: string) {
+    if (!this.state.nics.has(id)) return -1;
+    this.state.nics.delete(id);
     return 0;
 }
