@@ -38,6 +38,26 @@ specific interface while `route del 192.168.0.0/24` removes the rule.
 `ping <ip>` sends a UDP echo and reports the round-trip time. It is
 useful for verifying that routes are configured correctly.
 
+## service
+
+`service list` shows running daemons. `service start <name>` launches a
+daemon from `/bin` while `service stop <name>` terminates it.
+
+## httpd
+
+`httpd [port] [root]` starts a tiny web server serving files from the
+given directory. The default port is `80` and root `/var/www`.
+
+## ftpd
+
+`ftpd [port] [root]` exposes the filesystem over FTP. Only active mode is
+supported and uploads/downloads are limited to a few megabytes.
+
+## smtp
+
+`smtp [port] [root]` runs the simple mail daemon described below which
+stores incoming messages under `/var/mail`.
+
 ## Host hub communication
 
 When running multiple Helios instances on the same machine the host acts

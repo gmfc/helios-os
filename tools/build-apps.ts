@@ -44,6 +44,42 @@ const manifests: Record<string, any> = {
     mail: { name: "mail", syscalls: ["connect", "write"] },
     apt: { name: "apt", syscalls: ["open", "read", "write", "close", "mkdir"] },
     themes: { name: "themes", syscalls: ["open", "write", "close", "mkdir"] },
+    service: {
+        name: "service",
+        syscalls: [
+            "open",
+            "read",
+            "write",
+            "close",
+            "spawn",
+            "list_services",
+            "stop_service",
+        ],
+    },
+    ssh: {
+        name: "ssh",
+        syscalls: ["listen", "open", "read", "write", "close", "spawn", "ps"],
+    },
+    httpd: {
+        name: "httpd",
+        syscalls: ["listen", "open", "read", "write", "close"],
+    },
+    ftpd: {
+        name: "ftpd",
+        syscalls: [
+            "listen",
+            "connect",
+            "open",
+            "read",
+            "write",
+            "close",
+            "readdir",
+        ],
+    },
+    smtp: {
+        name: "smtp",
+        syscalls: ["listen", "open", "write", "mkdir", "close"],
+    },
     bash: {
         name: "bash",
         syscalls: [
@@ -99,6 +135,11 @@ const bundledOrder = [
     "ulimit",
     "apt",
     "themes",
+    "service",
+    "ssh",
+    "httpd",
+    "ftpd",
+    "smtp",
 ];
 
 function upper(name: string): string {
