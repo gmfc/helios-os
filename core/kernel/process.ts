@@ -28,6 +28,8 @@ export interface ProcessControlBlock {
     quotaMem: number;
     cpuMs: number;
     memBytes: number;
+    /** Number of times the process has exceeded CPU or memory quota. */
+    quotaViolations?: number;
     tty?: string;
     started: boolean;
     allowedSyscalls?: Set<string>;
@@ -56,6 +58,7 @@ export function createProcess(this: Kernel): ProcessID {
         quotaMem: 8 * 1024 * 1024,
         cpuMs: 0,
         memBytes: 0,
+        quotaViolations: 0,
         tty: undefined,
         started: false,
         allowedSyscalls: undefined,
@@ -161,7 +164,26 @@ export async function runProcess(
             pcb.cpuMs += result.cpu_ms ?? 0;
             pcb.memBytes += result.mem_bytes ?? 0;
             if (pcb.cpuMs > pcb.quotaMs_total || pcb.memBytes > pcb.quotaMem) {
-                console.warn("Process", pcb.pid, "exceeded quota");
+                pcb.quotaViolations = (pcb.quotaViolations ?? 0) + 1;
+                if (pcb.quotaViolations > 1) {
+                    const owners = (this as any).windowOwners as Map<number, ProcessID>;
+                    let emitted = false;
+                    for (const [wid, owner] of owners.entries()) {
+                        if (owner === pcb.pid) {
+                            eventBus.emit("desktop.appCrashed", {
+                                id: wid,
+                                code: pcb.spawnCode ?? "",
+                                opts: pcb.spawnOpts ?? {},
+                            });
+                            emitted = true;
+                        }
+                    }
+                    if (!emitted) {
+                        console.warn("Process", pcb.pid, "repeatedly exceeded quota");
+                    }
+                } else {
+                    console.warn("Process", pcb.pid, "exceeded quota");
+                }
                 this.syscall_kill(pcb.pid, 9);
             } else if (!result.running) {
                 pcb.exitCode = result.exit_code ?? 0;

@@ -27,7 +27,7 @@ export interface SyscallDispatcher {
     (call: "remove_monitor", id: number): Promise<number>;
     (call: "mount", image: FileSystemSnapshot, path: string): Promise<number>;
     (call: "unmount", path: string): Promise<number>;
-    (call: "set_quota", ms?: number, mem?: number): Promise<{ quotaMs: number; quotaMem: number }>;
+    (call: "set_quota", ms?: number, mem?: number, total?: number): Promise<{ quotaMs: number; quotaMs_total: number; quotaMem: number }>;
     (call: "kill", pid: ProcessID, sig?: number): Promise<number>;
     (call: "snapshot"): Promise<Snapshot>;
     (call: "save_snapshot" | "save_snapshot_named", name?: string): Promise<number>;
