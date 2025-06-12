@@ -68,7 +68,13 @@ interface UdpInternal {
     peers: Map<number, number>;
     nextSocket: number;
 }
-import { startHttpd, startSshd, startPingService } from "../services";
+import {
+    startHttpd,
+    startSshd,
+    startPingService,
+    startSmtpd,
+    startImapd,
+} from "../services";
 import {
     ProcessID,
     FileDescriptor,
@@ -443,6 +449,10 @@ export class Kernel {
                 startSshd(kernel, { port: svc.port });
             } else if (name.startsWith("pingd")) {
                 startPingService(kernel, { port: svc.port });
+            } else if (name.startsWith("smtpd")) {
+                startSmtpd(kernel, { port: svc.port });
+            } else if (name.startsWith("imapd")) {
+                startImapd(kernel, { port: svc.port });
             }
         }
 

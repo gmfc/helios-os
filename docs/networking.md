@@ -62,3 +62,26 @@ ssh -p 22 localhost
 
 This opens an interactive shell just like the main terminal.
 
+## smtpd and imapd
+
+`startSmtpd(kernel, { port: 25 })` launches a very small mail daemon. Incoming
+messages are written to `/var/mail/<recipient>/` as plain text files. An
+optional IMAP-like service can also be started with `startImapd(kernel, { port:
+143 })` which exposes simple `LIST` and `RETR` commands for reading those
+stored messages.
+
+Example SMTP session using `telnet`:
+
+```text
+HELO client
+MAIL FROM:<me@example.com>
+RCPT TO:<bob>
+DATA
+Hello Bob
+.
+QUIT
+```
+
+The bundled `sendmail` and `mail` CLI utilities wrap these protocols for quick
+testing.
+
