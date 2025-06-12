@@ -2,7 +2,7 @@ use once_cell::sync::Lazy;
 use tauri::Manager;
 use rusqlite::{params, OptionalExtension};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{mpsc, Mutex, Once};
 use std::time::{Duration, Instant};
@@ -95,6 +95,10 @@ static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
 static RESPONSES: Lazy<Mutex<HashMap<usize, mpsc::Sender<Value>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 static ISOLATES: Lazy<Mutex<HashMap<u32, JsRuntime>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static NIC_QUEUES: Lazy<Mutex<HashMap<String, std::collections::VecDeque<Value>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static NIC_IDS: Lazy<Mutex<HashMap<String, String>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 struct JsRuntime {
@@ -232,6 +236,60 @@ fn drop_isolate(pid: u32) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn register_nic(id: String, mac: String) -> Result<(), String> {
+    NIC_IDS.lock().unwrap().insert(id, mac.clone());
+    NIC_QUEUES
+        .lock()
+        .unwrap()
+        .entry(mac)
+        .or_insert_with(VecDeque::new);
+    Ok(())
+}
+
+#[tauri::command]
+fn send_frame(nic_id: String, frame: Value) -> Result<(), String> {
+    let macs = NIC_IDS.lock().unwrap();
+    let src_mac = match macs.get(&nic_id) {
+        Some(m) => m.clone(),
+        None => return Err("unknown nic".into()),
+    };
+    drop(macs);
+    let dst = frame
+        .get("dst")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let mut q = NIC_QUEUES.lock().unwrap();
+    if let Some(queue) = q.get_mut(&dst) {
+        queue.push_back(frame);
+    } else {
+        for (mac, queue) in q.iter_mut() {
+            if *mac != src_mac {
+                queue.push_back(frame.clone());
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn receive_frames(nic_id: String) -> Result<Value, String> {
+    let macs = NIC_IDS.lock().unwrap();
+    let mac = match macs.get(&nic_id) {
+        Some(m) => m.clone(),
+        None => return Ok(Value::Array(vec![])),
+    };
+    drop(macs);
+    let mut q = NIC_QUEUES.lock().unwrap();
+    if let Some(queue) = q.get_mut(&mac) {
+        let frames: Vec<Value> = queue.drain(..).collect();
+        Ok(Value::Array(frames))
+    } else {
+        Ok(Value::Array(vec![]))
+    }
+}
+
+#[tauri::command]
 async fn run_isolate(
     app: tauri::AppHandle,
     code: String,
@@ -351,6 +409,9 @@ fn main() {
             load_named_snapshot,
             run_isolate,
             run_isolate_slice,
+            register_nic,
+            send_frame,
+            receive_frames,
             syscall_response,
             drop_isolate
         ])
