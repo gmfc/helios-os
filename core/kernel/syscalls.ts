@@ -74,6 +74,8 @@ export function createSyscallDispatcher(
                 return this.syscall_listen(args[0], args[1], args[2]);
             case "connect":
                 return this.syscall_connect(args[0], args[1]);
+            case "udp_connect":
+                return this.syscall_udp_connect(args[0], args[1]);
             case "tcp_send":
                 return this.syscall_tcp_send(args[0], args[1]);
             case "udp_send":
@@ -375,6 +377,17 @@ export function syscall_connect(
     port: number,
 ): number {
     return this.state.tcp.connect(ip, port);
+}
+
+/**
+ * Open a UDP socket to the given address and return a socket id.
+ */
+export function syscall_udp_connect(
+    this: Kernel,
+    ip: string,
+    port: number,
+): number {
+    return this.state.udp.connect(ip, port);
 }
 
 /**

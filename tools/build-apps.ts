@@ -12,7 +12,7 @@ const manifests: Record<string, any> = {
     echo: { name: "echo", syscalls: ["open", "write", "close"] },
     nano: { name: "nano", syscalls: ["open", "read", "write", "close", "draw"] },
     browser: { name: "browser", syscalls: ["draw"] },
-    ping: { name: "ping", syscalls: ["connect", "tcp_send", "write"] },
+    ping: { name: "ping", syscalls: ["udp_connect", "udp_send", "write"] },
     desktop: { name: "desktop", syscalls: ["open", "read", "write", "close", "spawn", "draw"] },
     startx: { name: "startx", syscalls: ["open", "read", "write", "close", "spawn"] },
     ls: { name: "ls", syscalls: ["readdir", "write"] },

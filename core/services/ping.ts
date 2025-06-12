@@ -5,7 +5,8 @@ export interface PingOptions {
 }
 
 export function startPingService(kernel: Kernel, opts: PingOptions = {}): void {
-    const port = opts.port ?? 7;
+    const port = opts.port ?? 0;
     const handler: ServiceHandler = async (data) => data;
-    kernel.registerService(`pingd:${port}`, port, "tcp", handler);
+    kernel.registerService(`pingd:${port}`, port, "udp", handler);
 }
+

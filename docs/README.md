@@ -11,4 +11,5 @@ This folder contains detailed guides covering each part of the project. Use the 
 - [Theme Creation](themes.md)
 - [Developer Workflow](workflow.md)
 - [GUI, Shell and Sandbox Roadmap](gui_shell_sandbox.md)
+- [Networking Example](network_example.md)
 - [Contributor Guide](../CONTRIBUTING.md)
