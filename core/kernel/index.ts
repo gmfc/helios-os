@@ -100,6 +100,7 @@ import {
     createSyscallDispatcher,
     syscall_open,
     syscall_read,
+    syscall_wait,
     syscall_write,
     syscall_close,
     syscall_spawn,
@@ -230,6 +231,7 @@ export class Kernel {
     public createSyscallDispatcher = createSyscallDispatcher;
     private syscall_open = syscall_open;
     private syscall_read = syscall_read;
+    private syscall_wait = syscall_wait;
     private syscall_write = syscall_write;
     private syscall_close = syscall_close;
     private syscall_spawn = syscall_spawn;
@@ -823,6 +825,11 @@ export const kernelTest =
                   fd: FileDescriptor,
                   len: number,
               ) => syscall_read.call(k, pcb, fd, len),
+              syscall_wait: (
+                  k: Kernel,
+                  pcb: ProcessControlBlock,
+                  fd: FileDescriptor,
+              ) => syscall_wait.call(k, pcb, fd),
               syscall_draw: (
                   k: Kernel,
                   pcb: ProcessControlBlock,

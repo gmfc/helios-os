@@ -64,11 +64,14 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
                             man = JSON.parse(await readFile("/bin/bash.manifest.json")) as { syscalls?: string[] };
                         } catch {}
                         await syscall("spawn", bash, { argv: [`tty${id}`], tty: slave, syscalls: man ? man.syscalls : undefined });
-                        setInterval(async () => {
-                            if (master === null) return;
-                            const buf = await syscall("read", master, 1024);
-                            if (buf.length > 0) conn.write(buf);
-                        }, 10);
+                        (async () => {
+                            while (master !== null) {
+                                await syscall("wait", master);
+                                if (master === null) break;
+                                const buf = await syscall("read", master, 1024);
+                                if (buf.length > 0) conn.write(buf);
+                            }
+                        })();
                     }
                 }
             }
