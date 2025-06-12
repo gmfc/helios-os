@@ -260,7 +260,7 @@ function setup(dbPath: string) {
 let cleanup: () => void;
 
 async function run() {
-    let fs1 = await PersistentFileSystem.load();
+    const fs1 = await PersistentFileSystem.load();
     await fs1.open("/persist.txt", "w");
     await fs1.write("/persist.txt", new TextEncoder().encode("hello"));
     await fs1.mkdir("/dir", 0o755);
