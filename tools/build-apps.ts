@@ -23,6 +23,16 @@ const manifests: Record<string, any> = {
     kill: { name: "kill", syscalls: ["kill", "jobs"] },
     sleep: { name: "sleep", syscalls: [] },
     ulimit: { name: "ulimit", syscalls: ["set_quota", "write"] },
+    ifconfig: {
+        name: "ifconfig",
+        syscalls: [
+            "list_nics",
+            "nic_up",
+            "nic_down",
+            "nic_config",
+            "write",
+        ],
+    },
     apt: { name: "apt", syscalls: ["open", "read", "write", "close", "mkdir"] },
     themes: { name: "themes", syscalls: ["open", "write", "close", "mkdir"] },
     bash: {
@@ -58,6 +68,7 @@ const bundledOrder = [
     "nano",
     "browser",
     "ping",
+    "ifconfig",
     "desktop",
     "startx",
     "ls",

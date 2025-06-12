@@ -30,6 +30,11 @@ export interface SyscallDispatcher {
     (call: "window_owners"): Promise<Array<[number, ProcessID]>>;
     (call: "list_services"): Promise<Array<[string, { port: number; proto: string }]>>;
     (call: "stop_service", name: string): Promise<number>;
+    (call: "list_nics"): Promise<Array<{ id: string; mac: string; ip?: string; netmask?: string; status: string; ssid?: string }>>;
+    (call: "nic_up" | "nic_down", id: string): Promise<number>;
+    (call: "nic_config", id: string, ip: string, mask: string): Promise<number>;
+    (call: "create_nic", id: string, mac: string, ip?: string, mask?: string): Promise<number>;
+    (call: "remove_nic", id: string): Promise<number>;
     (call: "reboot"): Promise<number>;
     (call: string, ...args: any[]): Promise<any>;
 }

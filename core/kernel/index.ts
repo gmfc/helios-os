@@ -76,6 +76,12 @@ import {
     syscall_set_quota,
     syscall_ps,
     syscall_jobs,
+    syscall_list_nics,
+    syscall_nic_up,
+    syscall_nic_down,
+    syscall_nic_config,
+    syscall_create_nic,
+    syscall_remove_nic,
 } from "./syscalls";
 
 type Program = {
@@ -186,6 +192,12 @@ export class Kernel {
     private syscall_set_quota = syscall_set_quota;
     private syscall_ps = syscall_ps;
     private syscall_jobs = syscall_jobs;
+    private syscall_list_nics = syscall_list_nics;
+    private syscall_nic_up = syscall_nic_up;
+    private syscall_nic_down = syscall_nic_down;
+    private syscall_nic_config = syscall_nic_config;
+    private syscall_create_nic = syscall_create_nic;
+    private syscall_remove_nic = syscall_remove_nic;
 
     private constructor(fs: AsyncFileSystem) {
         this.state = {
@@ -224,6 +236,8 @@ export class Kernel {
                 id: "lo0",
                 mac: "00:00:00:00:00:00",
                 ip: "127.0.0.1",
+                netmask: "255.0.0.0",
+                status: "up",
                 rx: [],
                 tx: [],
             },
@@ -274,7 +288,14 @@ export class Kernel {
                     return arr;
                 }
                 if (v.dataType === "NIC") {
-                    const nic = new NIC(String(v.id), String(v.mac), v.ip as string | undefined);
+                    const nic = new NIC(
+                        String(v.id),
+                        String(v.mac),
+                        v.ip as string | undefined,
+                        v.netmask as string | undefined,
+                        (v.status as "up" | "down") ?? "down",
+                        v.ssid as string | undefined,
+                    );
                     nic.rx = (v.rx as unknown[]) ?? [];
                     nic.tx = (v.tx as unknown[]) ?? [];
                     return nic;
@@ -434,7 +455,14 @@ export class Kernel {
             });
         }
         for (const [, nic] of list.entries()) {
-            const n = new NIC(nic.id, nic.mac, nic.ip);
+            const n = new NIC(
+                nic.id,
+                nic.mac,
+                nic.ip,
+                nic.netmask,
+                (nic.status as "up" | "down") ?? "down",
+                nic.ssid,
+            );
             n.rx = nic.rx ?? [];
             n.tx = nic.tx ?? [];
             this.state.nics.set(n.id, n);
@@ -502,6 +530,9 @@ export class Kernel {
                     id: value.id,
                     mac: value.mac,
                     ip: value.ip,
+                    netmask: value.netmask,
+                    status: value.status,
+                    ssid: value.ssid,
                     rx: value.rx,
                     tx: value.tx,
                 };
@@ -656,6 +687,23 @@ export const kernelTest = (typeof vitest !== "undefined" || process.env.VITEST)
           ) => syscall_set_quota.call(k, pcb, ms, mem),
           syscall_ps: (k: Kernel) => syscall_ps.call(k),
           syscall_jobs: (k: Kernel) => syscall_jobs.call(k),
+          syscall_list_nics: (k: Kernel) => syscall_list_nics.call(k),
+          syscall_nic_up: (k: Kernel, id: string) => syscall_nic_up.call(k, id),
+          syscall_nic_down: (k: Kernel, id: string) => syscall_nic_down.call(k, id),
+          syscall_nic_config: (
+              k: Kernel,
+              id: string,
+              ip: string,
+              mask: string,
+          ) => syscall_nic_config.call(k, id, ip, mask),
+          syscall_create_nic: (
+              k: Kernel,
+              id: string,
+              mac: string,
+              ip?: string,
+              mask?: string,
+          ) => syscall_create_nic.call(k, id, mac, ip, mask),
+          syscall_remove_nic: (k: Kernel, id: string) => syscall_remove_nic.call(k, id),
           addMonitor: (k: Kernel, w: number, h: number) => k.addMonitor(w, h),
           removeMonitor: (k: Kernel, id: number) => k.removeMonitor(id),
       }
