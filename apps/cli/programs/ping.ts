@@ -4,12 +4,12 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     const STDOUT_FD = 1;
     const STDERR_FD = 2;
     const encode = (s: string) => new TextEncoder().encode(s);
-    const ip = argv[0] || '127.0.0.1';
-    const port = argv[1] ? parseInt(argv[1], 10) : 7;
+    const ip = argv[0] || "127.0.0.1";
+    const port = argv[1] ? parseInt(argv[1], 10) : 0;
     try {
-        const sock = await syscall('connect', ip, port);
+        const sock = await syscall("udp_connect", ip, port);
         const start = Date.now();
-        const resp = await syscall('tcp_send', sock, encode('ping'));
+        const resp = await syscall("udp_send", sock, encode("ping"));
         const end = Date.now();
         if (resp) {
             await syscall('write', STDOUT_FD, encode('pong ' + (end - start) + 'ms\n'));
@@ -23,3 +23,4 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     }
     return 0;
 }
+

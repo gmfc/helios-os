@@ -90,6 +90,7 @@ import {
     syscall_kill,
     syscall_listen,
     syscall_connect,
+    syscall_udp_connect,
     syscall_tcp_send,
     syscall_udp_send,
     syscall_draw,
@@ -213,6 +214,7 @@ export class Kernel {
     private syscall_kill = syscall_kill;
     private syscall_listen = syscall_listen;
     private syscall_connect = syscall_connect;
+    private syscall_udp_connect = syscall_udp_connect;
     private syscall_tcp_send = syscall_tcp_send;
     private syscall_udp_send = syscall_udp_send;
     private syscall_draw = syscall_draw;

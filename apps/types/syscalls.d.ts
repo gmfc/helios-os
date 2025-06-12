@@ -10,6 +10,7 @@ export interface SyscallDispatcher {
     (call: "spawn", code: string, opts?: any): Promise<ProcessID>;
     (call: "listen", port: number, proto: string, cb: ServiceHandler): Promise<number>;
     (call: "connect", ip: string, port: number): Promise<number>;
+    (call: "udp_connect", ip: string, port: number): Promise<number>;
     (call: "tcp_send" | "udp_send", sock: number, data: Uint8Array): Promise<number>;
     (call: "draw", html: Uint8Array, opts: WindowOpts): Promise<number>;
     (call: "mkdir", path: string, perms: number): Promise<number>;
@@ -40,3 +41,4 @@ export interface SyscallDispatcher {
     (call: string, ...args: any[]): Promise<any>;
 }
 export {};
+
