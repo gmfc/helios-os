@@ -24,6 +24,9 @@ export async function buildUI(opts: BuildOptions = {}) {
     const externals = [
         ...builtinModules,
         ...builtinModules.map((m) => `node:${m}`),
+        "@tauri-apps/api",
+        "@tauri-apps/plugin-clipboard-manager",
+        "@tauri-apps/plugin-sql",
     ];
 
     const ctx = await context({
