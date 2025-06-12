@@ -61,6 +61,8 @@ export function createSyscallDispatcher(
                 return await this.syscall_open(pcb, args[0], args[1]);
             case "read":
                 return await this.syscall_read(pcb, args[0], args[1]);
+            case "wait":
+                return await this.syscall_wait(pcb, args[0]);
             case "write":
                 return await this.syscall_write(pcb, args[0], args[1]);
             case "close":
@@ -366,6 +368,22 @@ export async function syscall_close(
     }
     pcb.fds.delete(fd);
     this.removeProcFd(pcb.pid, fd);
+    return 0;
+}
+
+/**
+ * Wait until data is available to read from a PTY file descriptor.
+ */
+export async function syscall_wait(
+    this: Kernel,
+    pcb: ProcessControlBlock,
+    fd: FileDescriptor,
+): Promise<number> {
+    const entry = pcb.fds.get(fd);
+    if (!entry || entry.ttyId === undefined) {
+        throw new Error("EBADF: bad file descriptor");
+    }
+    await this.ptys.wait(entry.ttyId, entry.ttySide as any);
     return 0;
 }
 
