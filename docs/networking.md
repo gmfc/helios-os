@@ -47,3 +47,18 @@ multiplayer testing without an external router. When MMO mode is
 enabled the host hub tunnels frames to the world router so remote
 players share the same simulated network.
 
+
+## sshd
+
+A minimal SSH-like daemon can be started from TypeScript using
+`startSshd(kernel, { port: 22 })`. Each connection is given its own
+pseudo-terminal and spawns `/bin/bash` inside the VM. Any username and
+password are currently accepted. Once running you can connect from the
+kernel's TCP stack or a host client:
+
+```bash
+ssh -p 22 localhost
+```
+
+This opens an interactive shell just like the main terminal.
+
