@@ -2,6 +2,7 @@ import assert from "assert";
 import { describe, it, beforeEach, afterEach } from "vitest";
 import { createHash } from "node:crypto";
 import { Kernel, kernelTest } from "./kernel";
+import { eventBus } from "./utils/eventBus";
 import { InMemoryFileSystem } from "./fs";
 import {
     syscall_mkdir,
@@ -487,5 +488,54 @@ describe("Kernel", () => {
         } catch (e: any) {
             assert(e.message.includes("EACCES"), "EACCES expected");
         }
+    });
+
+    it("window message validation", () => {
+        const msgKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        const pcb = kernelTest!.getState(msgKernel).processes.get(1)!;
+        const w1 = kernelTest!.syscall_draw(
+            msgKernel,
+            pcb,
+            new TextEncoder().encode("<p>a</p>"),
+            { title: "a" },
+        );
+        const w2 = kernelTest!.syscall_draw(
+            msgKernel,
+            pcb,
+            new TextEncoder().encode("<p>b</p>"),
+            { title: "b" },
+        );
+        const received: any[] = [];
+        const handler = (p: any) => received.push(p);
+        eventBus.on("desktop.windowPost", handler);
+
+        (msgKernel as any).handleWindowMessage({
+            id: w1,
+            data: { source: w1, target: w2, payload: { hello: "world" } },
+        });
+        eventBus.off("desktop.windowPost", handler);
+
+        assert.strictEqual(received.length, 1, "valid message delivered");
+        assert.strictEqual(received[0].id, w2);
+
+        const bad: any[] = [];
+        const handlerBad = (p: any) => bad.push(p);
+        eventBus.on("desktop.windowPost", handlerBad);
+        (msgKernel as any).handleWindowMessage({
+            id: w1,
+            data: { source: w2, target: w2, payload: {} },
+        });
+        eventBus.off("desktop.windowPost", handlerBad);
+        assert.strictEqual(bad.length, 0, "spoofed source ignored");
+
+        const large: any[] = [];
+        const handlerLarge = (p: any) => large.push(p);
+        eventBus.on("desktop.windowPost", handlerLarge);
+        (msgKernel as any).handleWindowMessage({
+            id: w1,
+            data: { source: w1, target: w2, payload: { text: "x".repeat(1100) } },
+        });
+        eventBus.off("desktop.windowPost", handlerLarge);
+        assert.strictEqual(large.length, 0, "large payload dropped");
     });
 });

@@ -640,10 +640,17 @@ export class Kernel {
         if (owner === undefined) return;
         const msg = payload.data as any;
         if (!msg || typeof msg !== "object") return;
-        if (msg.source !== undefined && msg.source !== source) return;
+        if (typeof msg.source !== "number" || msg.source !== source) return;
         const target = msg.target;
-        if (typeof target !== "number" || !this.windowOwners.has(target))
+        if (typeof target !== "number" || !this.windowOwners.has(target)) return;
+        if (!("payload" in msg)) return;
+        let payloadSize = 0;
+        try {
+            payloadSize = JSON.stringify(msg.payload).length;
+        } catch {
             return;
+        }
+        if (payloadSize > 1024) return;
         eventBus.emit("desktop.windowPost", { id: target, data: msg });
     }
 
