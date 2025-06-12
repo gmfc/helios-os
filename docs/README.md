@@ -12,5 +12,6 @@ This folder contains detailed guides covering each part of the project. Use the 
 - [Developer Workflow](workflow.md)
 - [GUI, Shell and Sandbox Roadmap](gui_shell_sandbox.md)
 - [Networking Example](network_example.md)
+- [FTP Example](ftp_example.md)
 - [Networking Tools](networking.md)
 - [Contributor Guide](../CONTRIBUTING.md)
