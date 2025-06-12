@@ -67,7 +67,8 @@ export function createSyscallDispatcher(
             case "spawn": {
                 const pidNew = await this.syscall_spawn(args[0], args[1]);
                 const child = this.state.processes.get(pidNew);
-                if (child) child.cwd = (args[1]?.cwd as string | undefined) ?? pcb.cwd;
+                if (child)
+                    child.cwd = (args[1]?.cwd as string | undefined) ?? pcb.cwd;
                 return pidNew;
             }
             case "listen":
@@ -95,7 +96,10 @@ export function createSyscallDispatcher(
             case "remove_monitor":
                 return this.sys_remove_monitor(args[0]);
             case "mount":
-                return await this.syscall_mount(args[0], resolvePath(pcb, args[1]));
+                return await this.syscall_mount(
+                    args[0],
+                    resolvePath(pcb, args[1]),
+                );
             case "unmount":
                 return await this.syscall_unmount(resolvePath(pcb, args[0]));
             case "chdir":
@@ -139,7 +143,13 @@ export function createSyscallDispatcher(
             case "nic_config":
                 return this.syscall_nic_config(args[0], args[1], args[2]);
             case "create_nic":
-                return this.syscall_create_nic(args[0], args[1], args[2], args[3], args[4]);
+                return this.syscall_create_nic(
+                    args[0],
+                    args[1],
+                    args[2],
+                    args[3],
+                    args[4],
+                );
             case "remove_nic":
                 return this.syscall_remove_nic(args[0]);
             case "dhcp_request":
@@ -171,6 +181,65 @@ export async function syscall_open(
     flags: string,
 ): Promise<FileDescriptor> {
     const fullPath = resolvePath(pcb, path);
+    if (fullPath === "/dev/ptmx") {
+        const alloc = this.ptys.allocate();
+        if (!(this.state.fs as any).getNode(alloc.master)) {
+            (this.state.fs as any).createFile(
+                alloc.master,
+                new Uint8Array(),
+                0o666,
+            );
+        }
+        if (!(this.state.fs as any).getNode(alloc.slave)) {
+            (this.state.fs as any).createFile(
+                alloc.slave,
+                new Uint8Array(),
+                0o666,
+            );
+        }
+        const fd = pcb.nextFd++;
+        pcb.fds.set(fd, {
+            path: alloc.master,
+            position: 0,
+            flags,
+            ttyId: alloc.id,
+            ttySide: "master",
+        });
+        this.registerProcFd(pcb.pid, fd);
+        return fd;
+    }
+    const ttyMatch = fullPath.match(/^\/dev\/tty(\d+)$/);
+    const ptyMatch = fullPath.match(/^\/dev\/pty(\d+)$/);
+    if (ttyMatch || ptyMatch) {
+        const id = parseInt((ttyMatch || ptyMatch)![1], 10);
+        if (!this.ptys.exists(id)) {
+            const alloc = this.ptys.allocate();
+            if (!(this.state.fs as any).getNode(alloc.master)) {
+                (this.state.fs as any).createFile(
+                    alloc.master,
+                    new Uint8Array(),
+                    0o666,
+                );
+            }
+            if (!(this.state.fs as any).getNode(alloc.slave)) {
+                (this.state.fs as any).createFile(
+                    alloc.slave,
+                    new Uint8Array(),
+                    0o666,
+                );
+            }
+        }
+        const fd = pcb.nextFd++;
+        pcb.fds.set(fd, {
+            path: fullPath,
+            position: 0,
+            flags,
+            ttyId: id,
+            ttySide: ttyMatch ? "slave" : "master",
+        });
+        this.registerProcFd(pcb.pid, fd);
+        return fd;
+    }
     const node = await this.state.fs.open(fullPath, flags);
     if (node.kind === "dir") {
         throw new Error(
@@ -206,7 +275,12 @@ export async function syscall_open(
         const data = await this.state.fs.read(fullPath);
         position = data.length;
     }
-    pcb.fds.set(fd, { path: fullPath, position, flags, virtual: (node as { virtual?: boolean }).virtual });
+    pcb.fds.set(fd, {
+        path: fullPath,
+        position,
+        flags,
+        virtual: (node as { virtual?: boolean }).virtual,
+    });
     this.registerProcFd(pcb.pid, fd);
     return fd;
 }
@@ -225,6 +299,9 @@ export async function syscall_read(
         throw new Error("EBADF: bad file descriptor");
     }
 
+    if (entry.ttyId !== undefined) {
+        return this.ptys.read(entry.ttyId, entry.ttySide as any, length);
+    }
     const data = await this.state.fs.read(entry.path);
     const bytes = data.subarray(entry.position, entry.position + length);
     entry.position += bytes.length;
@@ -251,6 +328,10 @@ export async function syscall_write(
         throw new Error("EBADF: bad file descriptor");
     }
 
+    if (entry.ttyId !== undefined) {
+        this.ptys.write(entry.ttyId, entry.ttySide as any, data);
+        return data.length;
+    }
     if (entry.virtual) {
         throw new Error("EBADF: file not opened for writing");
     }
@@ -296,6 +377,7 @@ export interface SpawnOptions {
     quotaMs_total?: number;
     quotaMem?: number;
     tty?: string;
+    pty?: boolean;
     syscalls?: string[];
 }
 
@@ -321,7 +403,26 @@ export async function syscall_spawn(
     pcb.memBytes = 0;
     pcb.isolateId = pid;
     pcb.started = false;
-    if (opts.tty !== undefined) pcb.tty = opts.tty;
+    if (opts.pty) {
+        const alloc = this.ptys.allocate();
+        if (!(this.state.fs as any).getNode(alloc.master)) {
+            (this.state.fs as any).createFile(
+                alloc.master,
+                new Uint8Array(),
+                0o666,
+            );
+        }
+        if (!(this.state.fs as any).getNode(alloc.slave)) {
+            (this.state.fs as any).createFile(
+                alloc.slave,
+                new Uint8Array(),
+                0o666,
+            );
+        }
+        pcb.tty = alloc.slave;
+    } else if (opts.tty !== undefined) {
+        pcb.tty = opts.tty;
+    }
     if (opts.syscalls) pcb.allowedSyscalls = new Set(opts.syscalls);
     pcb.code = code;
     pcb.spawnCode = code;
@@ -419,7 +520,11 @@ export async function syscall_udp_send(
 }
 
 /** Add a monitor to the display configuration. */
-export function sys_add_monitor(this: Kernel, width: number, height: number): number {
+export function sys_add_monitor(
+    this: Kernel,
+    width: number,
+    height: number,
+): number {
     return this.addMonitor(width, height);
 }
 
@@ -489,7 +594,10 @@ export async function syscall_rename(
     oldPath: string,
     newPath: string,
 ): Promise<number> {
-    await this.state.fs.rename(resolvePath(pcb, oldPath), resolvePath(pcb, newPath));
+    await this.state.fs.rename(
+        resolvePath(pcb, oldPath),
+        resolvePath(pcb, newPath),
+    );
     return 0;
 }
 
@@ -518,10 +626,9 @@ export async function syscall_mount(
     const raw = await fs.readFile(imagePath, "utf8");
     const snap = JSON.parse(raw) as FileSystemSnapshot;
     await this.state.fs.mount(snap, mountPoint);
-    (this as unknown as { mountedVolumes: Map<string, string> }).mountedVolumes.set(
-        mountPoint,
-        pathModule.resolve(imagePath),
-    );
+    (
+        this as unknown as { mountedVolumes: Map<string, string> }
+    ).mountedVolumes.set(mountPoint, pathModule.resolve(imagePath));
     return 0;
 }
 
@@ -546,7 +653,10 @@ export async function syscall_unmount(
 
     for (const pcb of this.state.processes.values()) {
         for (const [fd, entry] of pcb.fds) {
-            if (entry.path === mountPoint || entry.path.startsWith(mountPoint + "/")) {
+            if (
+                entry.path === mountPoint ||
+                entry.path.startsWith(mountPoint + "/")
+            ) {
                 pcb.fds.delete(fd);
                 this.removeProcFd(pcb.pid, fd);
             }

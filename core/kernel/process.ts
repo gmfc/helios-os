@@ -13,6 +13,8 @@ export interface FileDescriptorEntry {
     position: number;
     flags: string;
     virtual?: boolean;
+    ttyId?: number;
+    ttySide?: "master" | "slave";
 }
 
 export interface ProcessControlBlock {

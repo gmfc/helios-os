@@ -20,17 +20,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { eventBus } from "../utils/eventBus";
 import { NIC } from "../net/nic";
-import {
-    TCP,
-    TcpHandler,
-    TcpConnection,
-} from "../net/tcp";
-import {
-    UDP,
-    UdpHandler,
-    UdpConnection,
-} from "../net/udp";
+import { TCP, TcpHandler, TcpConnection } from "../net/tcp";
+import { UDP, UdpHandler, UdpConnection } from "../net/udp";
 import { Router } from "../net/router";
+import { PtyManager } from "./tty";
 import { BASH_SOURCE } from "../fs/bin";
 
 function ipToInt(ip: string): number {
@@ -44,7 +37,11 @@ function maskBits(mask: string): number {
     return mask
         .split(".")
         .map((o) => parseInt(o, 10))
-        .reduce((acc, octet) => acc + ((octet >>> 0).toString(2).match(/1/g)?.length || 0), 0);
+        .reduce(
+            (acc, octet) =>
+                acc + ((octet >>> 0).toString(2).match(/1/g)?.length || 0),
+            0,
+        );
 }
 
 function networkFrom(ip: string, mask: string): string {
@@ -139,6 +136,7 @@ export interface SpawnOpts {
     quotaMs_total?: number;
     quotaMem?: number;
     syscalls?: string[];
+    pty?: boolean;
     tty?: string;
 }
 
@@ -205,6 +203,7 @@ export class Kernel {
     private mountedVolumes: Map<string, string> = new Map();
     private windowOwners: Map<number, ProcessID> = new Map();
     private router = new Router();
+    private ptys = new PtyManager();
     private dhcpNextHost = 2;
     private createProcess = createProcess;
     private cleanupProcess = cleanupProcess;
@@ -260,12 +259,12 @@ export class Kernel {
             windows: [],
             services: new Map(),
             routes: new Map(),
-            monitors: [
-                { width: 800, height: 600, x: 0, y: 0 },
-            ],
+            monitors: [{ width: 800, height: 600, x: 0, y: 0 }],
         };
         this.readyQueue = [];
-        eventBus.on("desktop.windowRecv", (payload) => this.handleWindowMessage(payload));
+        eventBus.on("desktop.windowRecv", (payload) =>
+            this.handleWindowMessage(payload),
+        );
     }
 
     /**
@@ -294,13 +293,16 @@ export class Kernel {
             },
         ];
         if (typeof window !== "undefined") {
-            listen<{ id: number; pid: number; call: string; args: unknown[] }>("syscall", async (event) => {
-                const { id, pid, call, args } = event.payload;
-                const disp = dispatcherMap.get(pid);
-                if (!disp) return;
-                const result = await disp(call, ...args);
-                await invoke("syscall_response", { id, result });
-            });
+            listen<{ id: number; pid: number; call: string; args: unknown[] }>(
+                "syscall",
+                async (event) => {
+                    const { id, pid, call, args } = event.payload;
+                    const disp = dispatcherMap.get(pid);
+                    if (!disp) return;
+                    const result = await disp(call, ...args);
+                    await invoke("syscall_response", { id, result });
+                },
+            );
         }
         try {
             const initData = await fs.read("/sbin/init");
@@ -335,7 +337,8 @@ export class Kernel {
                     }
                     const bin = atob(str);
                     const arr = new Uint8Array(bin.length);
-                    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+                    for (let i = 0; i < bin.length; i++)
+                        arr[i] = bin.charCodeAt(i);
                     return arr;
                 }
                 if (v.dataType === "NIC") {
@@ -354,26 +357,46 @@ export class Kernel {
                 }
                 if (v.dataType === "TCP") {
                     const tcp = new TCP();
-                    (tcp as unknown as TcpInternal).listeners = new Map(v.listeners as Iterable<[number, TcpHandler]> ?? []);
+                    (tcp as unknown as TcpInternal).listeners = new Map(
+                        (v.listeners as Iterable<[number, TcpHandler]>) ?? [],
+                    );
                     const conns = new Map<number, TcpConnection>();
-                    for (const [id, info] of (v.connections as Iterable<[number, { ip: string; port: number }]> ?? [])) {
-                        conns.set(id, new TcpConnection(tcp, id, info.ip, info.port));
+                    for (const [id, info] of (v.connections as Iterable<
+                        [number, { ip: string; port: number }]
+                    >) ?? []) {
+                        conns.set(
+                            id,
+                            new TcpConnection(tcp, id, info.ip, info.port),
+                        );
                     }
                     (tcp as unknown as TcpInternal).connections = conns;
-                    (tcp as unknown as TcpInternal).peers = new Map(v.peers as Iterable<[number, number]> ?? []);
-                    (tcp as unknown as TcpInternal).nextSocket = (v.nextSocket as number) ?? 1;
+                    (tcp as unknown as TcpInternal).peers = new Map(
+                        (v.peers as Iterable<[number, number]>) ?? [],
+                    );
+                    (tcp as unknown as TcpInternal).nextSocket =
+                        (v.nextSocket as number) ?? 1;
                     return tcp;
                 }
                 if (v.dataType === "UDP") {
                     const udp = new UDP();
-                    (udp as unknown as UdpInternal).listeners = new Map(v.listeners as Iterable<[number, UdpHandler]> ?? []);
+                    (udp as unknown as UdpInternal).listeners = new Map(
+                        (v.listeners as Iterable<[number, UdpHandler]>) ?? [],
+                    );
                     const uconns = new Map<number, UdpConnection>();
-                    for (const [id, info] of (v.connections as Iterable<[number, { ip: string; port: number }]> ?? [])) {
-                        uconns.set(id, new UdpConnection(udp, id, info.ip, info.port));
+                    for (const [id, info] of (v.connections as Iterable<
+                        [number, { ip: string; port: number }]
+                    >) ?? []) {
+                        uconns.set(
+                            id,
+                            new UdpConnection(udp, id, info.ip, info.port),
+                        );
                     }
                     (udp as unknown as UdpInternal).connections = uconns;
-                    (udp as unknown as UdpInternal).peers = new Map(v.peers as Iterable<[number, number]> ?? []);
-                    (udp as unknown as UdpInternal).nextSocket = (v.nextSocket as number) ?? 1;
+                    (udp as unknown as UdpInternal).peers = new Map(
+                        (v.peers as Iterable<[number, number]>) ?? [],
+                    );
+                    (udp as unknown as UdpInternal).nextSocket =
+                        (v.nextSocket as number) ?? 1;
                     return udp;
                 }
             }
@@ -407,9 +430,10 @@ export class Kernel {
 
         kernel.state.udp = parsed.udp instanceof UDP ? parsed.udp : new UDP();
 
-        kernel.state.monitors = parsed.monitors && parsed.monitors.length
-            ? parsed.monitors
-            : [{ width: 800, height: 600, x: 0, y: 0 }];
+        kernel.state.monitors =
+            parsed.monitors && parsed.monitors.length
+                ? parsed.monitors
+                : [{ width: 800, height: 600, x: 0, y: 0 }];
         eventBus.emit("desktop.updateMonitors", kernel.state.monitors);
 
         for (const [name, svc] of kernel.state.services.entries()) {
@@ -423,13 +447,16 @@ export class Kernel {
         }
 
         if (typeof window !== "undefined") {
-            listen<{ id: number; pid: number; call: string; args: unknown[] }>("syscall", async (event) => {
-                const { id, pid, call, args } = event.payload;
-                const disp = dispatcherMap.get(pid);
-                if (!disp) return;
-                const result = await disp(call, ...args);
-                await invoke("syscall_response", { id, result });
-            });
+            listen<{ id: number; pid: number; call: string; args: unknown[] }>(
+                "syscall",
+                async (event) => {
+                    const { id, pid, call, args } = event.payload;
+                    const disp = dispatcherMap.get(pid);
+                    if (!disp) return;
+                    const result = await disp(call, ...args);
+                    await invoke("syscall_response", { id, result });
+                },
+            );
         }
 
         for (const pid of kernel.state.processes.keys()) {
@@ -482,21 +509,28 @@ export class Kernel {
         name: string,
         port: number,
         proto: string,
-        handler: ServiceHandler | {
-            onConnect?: (c: TcpConnection | UdpConnection) => void;
-            onData?: (c: TcpConnection | UdpConnection, d: Uint8Array) => void;
-            onClose?: (c: TcpConnection | UdpConnection) => void;
-        },
+        handler:
+            | ServiceHandler
+            | {
+                  onConnect?: (c: TcpConnection | UdpConnection) => void;
+                  onData?: (
+                      c: TcpConnection | UdpConnection,
+                      d: Uint8Array,
+                  ) => void;
+                  onClose?: (c: TcpConnection | UdpConnection) => void;
+              },
     ): void {
         if (proto === "tcp" && typeof handler === "object") {
             this.syscall_listen(port, proto, (conn) => {
                 handler.onConnect?.(conn);
-                if (handler.onData) conn.onData((d) => handler.onData?.(conn, d));
+                if (handler.onData)
+                    conn.onData((d) => handler.onData?.(conn, d));
             });
         } else if (proto === "udp" && typeof handler === "object") {
             this.syscall_listen(port, proto, (conn) => {
                 handler.onConnect?.(conn);
-                if (handler.onData) conn.onData((d) => handler.onData?.(conn, d));
+                if (handler.onData)
+                    conn.onData((d) => handler.onData?.(conn, d));
             });
         } else {
             this.syscall_listen(port, proto, handler as ServiceHandler);
@@ -589,7 +623,8 @@ export class Kernel {
         if (!msg || typeof msg !== "object") return;
         if (msg.source !== undefined && msg.source !== source) return;
         const target = msg.target;
-        if (typeof target !== "number" || !this.windowOwners.has(target)) return;
+        if (typeof target !== "number" || !this.windowOwners.has(target))
+            return;
         eventBus.emit("desktop.windowPost", { id: target, data: msg });
     }
 
@@ -627,7 +662,9 @@ export class Kernel {
                 return {
                     dataType: "TCP",
                     listeners: Array.from(tcpVal.listeners.entries()),
-                    connections: Array.from(tcpVal.connections.entries()).map(([k, c]) => [k, { ip: c.ip, port: c.port }]),
+                    connections: Array.from(tcpVal.connections.entries()).map(
+                        ([k, c]) => [k, { ip: c.ip, port: c.port }],
+                    ),
                     peers: Array.from(tcpVal.peers.entries()),
                     nextSocket: tcpVal.nextSocket,
                 };
@@ -637,7 +674,9 @@ export class Kernel {
                 return {
                     dataType: "UDP",
                     listeners: Array.from(udpVal.listeners.entries()),
-                    connections: Array.from(udpVal.connections.entries()).map(([k, c]) => [k, { ip: c.ip, port: c.port }]),
+                    connections: Array.from(udpVal.connections.entries()).map(
+                        ([k, c]) => [k, { ip: c.ip, port: c.port }],
+                    ),
                     peers: Array.from(udpVal.peers.entries()),
                     nextSocket: udpVal.nextSocket,
                 };
@@ -692,7 +731,9 @@ export class Kernel {
 
     public async stop(): Promise<void> {
         persistKernelSnapshot(this.snapshot());
-        const fsClosable = this.state.fs as unknown as { close?: () => Promise<void> };
+        const fsClosable = this.state.fs as unknown as {
+            close?: () => Promise<void>;
+        };
         if (fsClosable.close) {
             try {
                 await fsClosable.close();
@@ -713,96 +754,103 @@ export type { ProcessID, FileDescriptor, ProcessControlBlock } from "./process";
 export type { SyscallDispatcher } from "./syscalls";
 
 declare const vitest: unknown | undefined;
-export const kernelTest = (typeof vitest !== "undefined" || process.env.VITEST)
-    ? {
-          createKernel: (fs: AsyncFileSystem) => {
-              const k = new Kernel(fs);
-              (k as any).createProcess();
-              return k;
-          },
-          getState: (k: Kernel) => (k as any).state as KernelState,
-          setInitPid: (k: Kernel, pid: ProcessID) => {
-              (k as any).initPid = pid;
-          },
-          setRunProcess: (
-              k: Kernel,
-              fn: (pcb: ProcessControlBlock) => Promise<void>,
-          ) => {
-              (k as any).runProcess = fn;
-          },
-          createProcess: (k: Kernel) => (k as any).createProcess(),
-          runProcess: (k: Kernel, pcb: ProcessControlBlock) =>
-              (k as any).runProcess(pcb),
-          syscall_spawn: (k: Kernel, code: string, opts?: SpawnOpts) =>
-              syscall_spawn.call(k, code, opts),
-          syscall_mount: (
-              k: Kernel,
-              file: string,
-              path: string,
-          ) => syscall_mount.call(k, file, path),
-          syscall_unmount: (k: Kernel, path: string) =>
-              syscall_unmount.call(k, path),
-          syscall_open: (
-              k: Kernel,
-              pcb: ProcessControlBlock,
-              path: string,
-              flags: string,
-          ) => syscall_open.call(k, pcb, path, flags),
-          syscall_read: (
-              k: Kernel,
-              pcb: ProcessControlBlock,
-              fd: FileDescriptor,
-              len: number,
-          ) => syscall_read.call(k, pcb, fd, len),
-          syscall_draw: (
-              k: Kernel,
-              pcb: ProcessControlBlock,
-              html: Uint8Array,
-              opts: WindowOpts,
-          ) => syscall_draw.call(k, pcb, html, opts),
-          syscall_readdir: (
-              k: Kernel,
-              pcb: ProcessControlBlock,
-              path: string,
-          ) => syscall_readdir.call(k, pcb, path),
-          syscall_kill: (k: Kernel, pid: number, sig?: number) =>
-              syscall_kill.call(k, pid, sig),
-          syscall_set_quota: (
-              k: Kernel,
-              pcb: ProcessControlBlock,
-              ms?: number,
-              mem?: number,
-          ) => syscall_set_quota.call(k, pcb, ms, mem),
-          syscall_ps: (k: Kernel) => syscall_ps.call(k),
-          syscall_jobs: (k: Kernel) => syscall_jobs.call(k),
-          syscall_list_nics: (k: Kernel) => syscall_list_nics.call(k),
-          syscall_nic_up: (k: Kernel, id: string) => syscall_nic_up.call(k, id),
-          syscall_nic_down: (k: Kernel, id: string) => syscall_nic_down.call(k, id),
-          syscall_nic_config: (
-              k: Kernel,
-              id: string,
-              ip: string,
-              mask: string,
-          ) => syscall_nic_config.call(k, id, ip, mask),
-          syscall_create_nic: (
-              k: Kernel,
-              id: string,
-              mac: string,
-              ip?: string,
-              mask?: string,
-              type?: "wired" | "wifi",
-          ) => syscall_create_nic.call(k, id, mac, ip, mask, type),
-          syscall_remove_nic: (k: Kernel, id: string) => syscall_remove_nic.call(k, id),
-          syscall_dhcp_request: (k: Kernel, id: string) => syscall_dhcp_request.call(k, id),
-          syscall_wifi_scan: (k: Kernel) => syscall_wifi_scan.call(k),
-          syscall_wifi_join: (k: Kernel, id: string, ssid: string, pass: string) =>
-              syscall_wifi_join.call(k, id, ssid, pass),
-          syscall_route_add: (k: Kernel, cidr: string, nic: string) =>
-              syscall_route_add.call(k, cidr, nic),
-          syscall_route_del: (k: Kernel, cidr: string) =>
-              syscall_route_del.call(k, cidr),
-          getRouter: (k: Kernel) => (k as any).router as Router,
-          addMonitor: (k: Kernel, w: number, h: number) => k.addMonitor(w, h),
-          removeMonitor: (k: Kernel, id: number) => k.removeMonitor(id),
-      }
-    : undefined;
+export const kernelTest =
+    typeof vitest !== "undefined" || process.env.VITEST
+        ? {
+              createKernel: (fs: AsyncFileSystem) => {
+                  const k = new Kernel(fs);
+                  (k as any).createProcess();
+                  return k;
+              },
+              getState: (k: Kernel) => (k as any).state as KernelState,
+              setInitPid: (k: Kernel, pid: ProcessID) => {
+                  (k as any).initPid = pid;
+              },
+              setRunProcess: (
+                  k: Kernel,
+                  fn: (pcb: ProcessControlBlock) => Promise<void>,
+              ) => {
+                  (k as any).runProcess = fn;
+              },
+              createProcess: (k: Kernel) => (k as any).createProcess(),
+              runProcess: (k: Kernel, pcb: ProcessControlBlock) =>
+                  (k as any).runProcess(pcb),
+              syscall_spawn: (k: Kernel, code: string, opts?: SpawnOpts) =>
+                  syscall_spawn.call(k, code, opts),
+              syscall_mount: (k: Kernel, file: string, path: string) =>
+                  syscall_mount.call(k, file, path),
+              syscall_unmount: (k: Kernel, path: string) =>
+                  syscall_unmount.call(k, path),
+              syscall_open: (
+                  k: Kernel,
+                  pcb: ProcessControlBlock,
+                  path: string,
+                  flags: string,
+              ) => syscall_open.call(k, pcb, path, flags),
+              syscall_read: (
+                  k: Kernel,
+                  pcb: ProcessControlBlock,
+                  fd: FileDescriptor,
+                  len: number,
+              ) => syscall_read.call(k, pcb, fd, len),
+              syscall_draw: (
+                  k: Kernel,
+                  pcb: ProcessControlBlock,
+                  html: Uint8Array,
+                  opts: WindowOpts,
+              ) => syscall_draw.call(k, pcb, html, opts),
+              syscall_readdir: (
+                  k: Kernel,
+                  pcb: ProcessControlBlock,
+                  path: string,
+              ) => syscall_readdir.call(k, pcb, path),
+              syscall_kill: (k: Kernel, pid: number, sig?: number) =>
+                  syscall_kill.call(k, pid, sig),
+              syscall_set_quota: (
+                  k: Kernel,
+                  pcb: ProcessControlBlock,
+                  ms?: number,
+                  mem?: number,
+              ) => syscall_set_quota.call(k, pcb, ms, mem),
+              syscall_ps: (k: Kernel) => syscall_ps.call(k),
+              syscall_jobs: (k: Kernel) => syscall_jobs.call(k),
+              syscall_list_nics: (k: Kernel) => syscall_list_nics.call(k),
+              syscall_nic_up: (k: Kernel, id: string) =>
+                  syscall_nic_up.call(k, id),
+              syscall_nic_down: (k: Kernel, id: string) =>
+                  syscall_nic_down.call(k, id),
+              syscall_nic_config: (
+                  k: Kernel,
+                  id: string,
+                  ip: string,
+                  mask: string,
+              ) => syscall_nic_config.call(k, id, ip, mask),
+              syscall_create_nic: (
+                  k: Kernel,
+                  id: string,
+                  mac: string,
+                  ip?: string,
+                  mask?: string,
+                  type?: "wired" | "wifi",
+              ) => syscall_create_nic.call(k, id, mac, ip, mask, type),
+              syscall_remove_nic: (k: Kernel, id: string) =>
+                  syscall_remove_nic.call(k, id),
+              syscall_dhcp_request: (k: Kernel, id: string) =>
+                  syscall_dhcp_request.call(k, id),
+              syscall_wifi_scan: (k: Kernel) => syscall_wifi_scan.call(k),
+              syscall_wifi_join: (
+                  k: Kernel,
+                  id: string,
+                  ssid: string,
+                  pass: string,
+              ) => syscall_wifi_join.call(k, id, ssid, pass),
+              syscall_route_add: (k: Kernel, cidr: string, nic: string) =>
+                  syscall_route_add.call(k, cidr, nic),
+              syscall_route_del: (k: Kernel, cidr: string) =>
+                  syscall_route_del.call(k, cidr),
+              getRouter: (k: Kernel) => (k as any).router as Router,
+              addMonitor: (k: Kernel, w: number, h: number) =>
+                  k.addMonitor(w, h),
+              removeMonitor: (k: Kernel, id: number) => k.removeMonitor(id),
+          }
+        : undefined;

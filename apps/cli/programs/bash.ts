@@ -1,120 +1,128 @@
 import type { SyscallDispatcher } from "../../types/syscalls";
 
-const HIST_PATH = '/bash_history';
+const HIST_PATH = "/bash_history";
 
-
-export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<number> {
-    const STDOUT_FD = 1;
+export async function main(
+    syscall: SyscallDispatcher,
+    argv: string[],
+): Promise<number> {
     const STDERR_FD = 2;
     const encode = (s: string) => new TextEncoder().encode(s);
     const decode = (b: Uint8Array) => new TextDecoder().decode(b);
 
-    let cwd = '/';
+    let cwd = "/";
 
     const resolve = (p: string): string => {
         if (!p) return cwd;
-        if (p.startsWith('/')) p = p;
-        else p = (cwd.endsWith('/') ? cwd : cwd + '/') + p;
-        const parts = p.split('/').filter(s => s && s !== '.');
+        if (p.startsWith("/")) p = p;
+        else p = (cwd.endsWith("/") ? cwd : cwd + "/") + p;
+        const parts = p.split("/").filter((s) => s && s !== ".");
         const stack: string[] = [];
         for (const part of parts) {
-            if (part === '..') stack.pop();
+            if (part === "..") stack.pop();
             else stack.push(part);
         }
-        return '/' + stack.join('/');
+        return "/" + stack.join("/");
     };
 
     let history: string[] = [];
 
     async function loadHistory() {
         try {
-            const fd = await syscall('open', HIST_PATH, 'r');
-            let data = '';
+            const fd = await syscall("open", HIST_PATH, "r");
+            let data = "";
             while (true) {
-                const chunk = await syscall('read', fd, 1024);
+                const chunk = await syscall("read", fd, 1024);
                 if (chunk.length === 0) break;
                 data += decode(chunk);
             }
-            await syscall('close', fd);
-            history = data.split('\n').filter(l => l);
+            await syscall("close", fd);
+            history = data.split("\n").filter((l) => l);
         } catch {}
     }
 
     async function appendHistory(cmd: string) {
         try {
-            const fd = await syscall('open', HIST_PATH, 'a');
-            await syscall('write', fd, encode(cmd + '\n'));
-            await syscall('close', fd);
+            const fd = await syscall("open", HIST_PATH, "a");
+            await syscall("write", fd, encode(cmd + "\n"));
+            await syscall("close", fd);
         } catch {}
     }
 
     async function readFile(path: string): Promise<string> {
-        const fd = await syscall('open', path, 'r');
-        let out = '';
+        const fd = await syscall("open", path, "r");
+        let out = "";
         while (true) {
-            const chunk = await syscall('read', fd, 1024);
+            const chunk = await syscall("read", fd, 1024);
             if (chunk.length === 0) break;
             out += decode(chunk);
         }
-        await syscall('close', fd);
+        await syscall("close", fd);
         return out;
     }
 
     async function complete(prefix: string): Promise<string[]> {
         try {
-            const ents: Array<{ path: string }> = await syscall('readdir', '/bin');
+            const ents: Array<{ path: string }> = await syscall(
+                "readdir",
+                "/bin",
+            );
             return ents
-                .map(e => e.path.split('/').pop() as string)
-                .filter(n => n.startsWith(prefix));
+                .map((e) => e.path.split("/").pop() as string)
+                .filter((n) => n.startsWith(prefix));
         } catch {
             return [];
         }
     }
 
     async function readLine(fd: number): Promise<string> {
-        let line = '';
+        let line = "";
         let histIndex = history.length;
         const redraw = async () => {
-            await syscall('write', STDOUT_FD, encode('\r\x1b[K$ ' + line));
+            await syscall("write", tty, encode("\r\x1b[K$ " + line));
         };
         while (true) {
-            const chunk = await syscall('read', fd, 1);
+            const chunk = await syscall("read", fd, 1);
             if (chunk.length === 0) continue;
             const ch = decode(chunk);
-            if (ch === '\n') {
-                await syscall('write', STDOUT_FD, encode('\n'));
+            if (ch === "\n") {
+                await syscall("write", tty, encode("\n"));
                 break;
             }
-            if (ch === '\u007f') {
+            if (ch === "\u007f") {
                 if (line.length > 0) {
                     line = line.slice(0, -1);
                     await redraw();
                 }
                 continue;
             }
-            if (ch === '\t') {
+            if (ch === "\t") {
                 const words = line.split(/\s+/);
                 const prefix = words[words.length - 1];
                 const matches = await complete(prefix);
                 if (matches.length === 1) {
                     words[words.length - 1] = matches[0];
-                    line = words.join(' ');
+                    line = words.join(" ");
                     await redraw();
                 } else if (matches.length > 1) {
-                    await syscall('write', STDOUT_FD, encode('\n' + matches.join(' ') + '\n'));
+                    await syscall(
+                        "write",
+                        tty,
+                        encode("\n" + matches.join(" ") + "\n"),
+                    );
                     await redraw();
                 }
                 continue;
             }
-            if (ch === '\x1b') {
-                const seq = decode(await syscall('read', fd, 2));
-                if (seq === '[A') {
+            if (ch === "\x1b") {
+                const seq = decode(await syscall("read", fd, 2));
+                if (seq === "[A") {
                     if (histIndex > 0) histIndex--;
-                    line = history[histIndex] ?? '';
+                    line = history[histIndex] ?? "";
                     await redraw();
-                } else if (seq === '[B') {
+                } else if (seq === "[B") {
                     if (histIndex < history.length) histIndex++;
-                    line = histIndex < history.length ? history[histIndex] : '';
+                    line = histIndex < history.length ? history[histIndex] : "";
                     await redraw();
                 }
                 continue;
@@ -126,155 +134,214 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
 
     async function waitPid(pid: number): Promise<void> {
         while (true) {
-            const list: Array<{ pid: number; exited?: boolean }> = await syscall('ps');
-            const proc = list.find(p => p.pid === pid);
+            const list: Array<{ pid: number; exited?: boolean }> =
+                await syscall("ps");
+            const proc = list.find((p) => p.pid === pid);
             if (!proc || proc.exited) break;
-            await new Promise(r => setTimeout(r, 50));
+            await new Promise((r) => setTimeout(r, 50));
         }
     }
 
-    const ttyName = argv[0] || 'tty0';
+    const ttyName = argv[0] || "tty0";
     let tty: number;
     try {
-        tty = await syscall('open', '/dev/' + ttyName, 'r');
+        tty = await syscall("open", "/dev/" + ttyName, "rw");
     } catch {
-        await syscall('write', STDERR_FD, encode('bash: unable to open tty\n'));
+        await syscall("write", STDERR_FD, encode("bash: unable to open tty\n"));
         return 1;
     }
     await loadHistory();
 
-    const initLimits = await syscall('set_quota');
+    const initLimits = await syscall("set_quota");
     let quotaMs = initLimits.quotaMs;
     let quotaMem = initLimits.quotaMem;
 
     let nextJob = 1;
-    const jobs: Array<{ id: number; pids: number[]; command: string; state?: string }> = [];
+    const jobs: Array<{
+        id: number;
+        pids: number[];
+        command: string;
+        state?: string;
+    }> = [];
 
     while (true) {
-        await syscall('write', STDOUT_FD, encode('$ '));
+        await syscall("write", tty, encode("$ "));
         const line = (await readLine(tty)).trim();
         if (!line) continue;
         history.push(line);
         await appendHistory(line);
-        if (line === 'exit') break;
+        if (line === "exit") break;
 
-        if (line === 'pwd') {
-            await syscall('write', STDOUT_FD, encode(cwd + '\n'));
+        if (line === "pwd") {
+            await syscall("write", tty, encode(cwd + "\n"));
             continue;
         }
 
-        if (line.startsWith('cd ')) {
-            const target = line.slice(3).trim() || '/';
+        if (line.startsWith("cd ")) {
+            const target = line.slice(3).trim() || "/";
             const full = resolve(target);
-            const rc = await syscall('chdir', target);
+            const rc = await syscall("chdir", target);
             if (rc === 0) {
                 cwd = full;
             } else {
-                await syscall('write', STDERR_FD, encode('bash: cd: ' + target + ': No such file or directory\n'));
+                await syscall(
+                    "write",
+                    STDERR_FD,
+                    encode(
+                        "bash: cd: " + target + ": No such file or directory\n",
+                    ),
+                );
             }
             continue;
         }
 
-        if (line === 'jobs') {
-            let list: Array<{ id: number; pids: number[]; command: string; status?: string }>;
+        if (line === "jobs") {
+            let list: Array<{
+                id: number;
+                pids: number[];
+                command: string;
+                status?: string;
+            }>;
             try {
-                list = await syscall('jobs');
+                list = await syscall("jobs");
             } catch {
                 list = jobs;
             }
             for (const j of list) {
-                await syscall('write', STDOUT_FD,
-                    encode('[' + j.id + '] ' + (j.status || j.state) + ' ' + j.command + '\n'));
+                await syscall(
+                    "write",
+                    tty,
+                    encode(
+                        "[" +
+                            j.id +
+                            "] " +
+                            (j.status || j.state) +
+                            " " +
+                            j.command +
+                            "\n",
+                    ),
+                );
             }
             continue;
         }
 
-        if (line.startsWith('fg ')) {
+        if (line.startsWith("fg ")) {
             const id = parseInt(line.slice(3).trim(), 10);
-            const job = jobs.find(j => j.id === id);
+            const job = jobs.find((j) => j.id === id);
             if (job) {
                 for (const pid of job.pids) {
                     await waitPid(pid);
                 }
-                job.state = 'Done';
+                job.state = "Done";
             }
             continue;
         }
 
-        if (line.startsWith('bg ')) {
+        if (line.startsWith("bg ")) {
             const id = parseInt(line.slice(3).trim(), 10);
-            const job = jobs.find(j => j.id === id);
-            if (job) job.state = 'Running';
+            const job = jobs.find((j) => j.id === id);
+            if (job) job.state = "Running";
             continue;
         }
 
-        if (line.startsWith('ulimit')) {
+        if (line.startsWith("ulimit")) {
             const parts = line.split(/\s+/).slice(1);
             if (parts.length === 0) {
-                await syscall('write', STDOUT_FD, encode('cpu ' + quotaMs + ' mem ' + quotaMem + '\n'));
+                await syscall(
+                    "write",
+                    tty,
+                    encode("cpu " + quotaMs + " mem " + quotaMem + "\n"),
+                );
             } else {
                 for (let i = 0; i < parts.length; i++) {
-                    if (parts[i] === '-t' && parts[i + 1]) {
+                    if (parts[i] === "-t" && parts[i + 1]) {
                         quotaMs = parseInt(parts[i + 1], 10);
                         i++;
-                    } else if (parts[i] === '-m' && parts[i + 1]) {
+                    } else if (parts[i] === "-m" && parts[i + 1]) {
                         quotaMem = parseInt(parts[i + 1], 10);
                         i++;
                     }
                 }
-                await syscall('set_quota', quotaMs, quotaMem);
+                await syscall("set_quota", quotaMs, quotaMem);
             }
             continue;
         }
 
-        if (line.startsWith('kill')) {
-            const args = line.slice(4).trim().split(/\s+/).filter(a => a);
+        if (line.startsWith("kill")) {
+            const args = line
+                .slice(4)
+                .trim()
+                .split(/\s+/)
+                .filter((a) => a);
             for (const arg of args) {
-                if (arg.startsWith('%')) {
+                if (arg.startsWith("%")) {
                     const id = parseInt(arg.slice(1), 10);
-                    let list: Array<{ id: number; pids: number[]; command: string; status?: string }>;
+                    let list: Array<{
+                        id: number;
+                        pids: number[];
+                        command: string;
+                        status?: string;
+                    }>;
                     try {
-                        list = await syscall('jobs');
+                        list = await syscall("jobs");
                     } catch {
                         list = jobs;
                     }
-                    const job = list.find(j => j.id === id);
+                    const job = list.find((j) => j.id === id);
                     if (job) {
                         for (const pid of job.pids) {
-                            await syscall('kill', pid);
+                            await syscall("kill", pid);
                         }
                     }
                 } else {
                     const pid = parseInt(arg, 10);
                     if (!isNaN(pid)) {
-                        await syscall('kill', pid);
+                        await syscall("kill", pid);
                     }
                 }
             }
             continue;
         }
 
-        const bg = line.endsWith('&');
+        const bg = line.endsWith("&");
         const cmd = bg ? line.slice(0, -1).trim() : line;
-        const [name, ...args] = cmd.split(' ');
+        const [name, ...args] = cmd.split(" ");
         try {
-            const code = await readFile('/bin/' + name);
+            const code = await readFile("/bin/" + name);
             let m: { syscalls?: string[] } | undefined;
             try {
-                m = JSON.parse(await readFile('/bin/' + name + '.manifest.json')) as { syscalls?: string[] };
+                m = JSON.parse(
+                    await readFile("/bin/" + name + ".manifest.json"),
+                ) as { syscalls?: string[] };
             } catch {}
-            const pid = await syscall('spawn', code, { argv: args, syscalls: m ? m.syscalls : undefined, tty: ttyName, quotaMs, quotaMem, cwd });
-            const job = { id: nextJob++, pids: [pid], command: cmd, state: 'Running' };
+            const pid = await syscall("spawn", code, {
+                argv: args,
+                syscalls: m ? m.syscalls : undefined,
+                tty: ttyName,
+                quotaMs,
+                quotaMem,
+                cwd,
+            });
+            const job = {
+                id: nextJob++,
+                pids: [pid],
+                command: cmd,
+                state: "Running",
+            };
             jobs.push(job);
             if (!bg) {
                 await waitPid(pid);
-                job.state = 'Done';
+                job.state = "Done";
             }
         } catch {
-            await syscall('write', STDERR_FD, encode('bash: ' + name + ': command not found\n'));
+            await syscall(
+                "write",
+                STDERR_FD,
+                encode("bash: " + name + ": command not found\n"),
+            );
         }
     }
 
-    await syscall('close', tty);
+    await syscall("close", tty);
     return 0;
 }
