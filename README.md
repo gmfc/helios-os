@@ -242,11 +242,11 @@ Kernel denies undeclared syscalls.
 | ----- | ----------------------------------- | ------------------------------- |
 | 1-2   | Kernel MVP: spawn, FS, `echo`.      | `cat /etc/issue` prints.        |
 | 3-4   | Window mgr + xterm.js.              | Drag windows, resize terminal.  |
-| 5-6   | TCP stack + ping loopback.          | `ping 127.0.0.1` < 10 ms.       |
-| 7     | Switch + router; cross-subnet ping. | Ping across /24.                |
-| 8     | HTTP daemon & browser app.          | Serve page inside VM.           |
+| 5-6   | TCP stack with `ping` and `ifconfig`.          | `ping 127.0.0.1` < 10 ms.       |
+| 7     | Switch + router; `route` works. | Ping across /24.                |
+| 8     | HTTP daemon & browser app; `iwlist`/`iwconfig`.          | Serve page inside VM. |
 | 9     | SSH mock login over LAN.            | Remote shell works.             |
-| 10    | DNS + DHCP.                         | `curl http://foo.vm` resolves.  |
+| 10    | DNS + DHCP via `dhclient`.                         | `curl http://foo.vm` resolves.  |
 | 11    | apt repo + `apt install nano`.      | Editor launches.                |
 | 12-13 | P2P coin ledger.                    | 3-node chain reaches consensus. |
 | 14    | MMO world router alpha.             | Two clients share ping 80 ms.   |
