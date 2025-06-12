@@ -27,8 +27,8 @@ describe("Kernel snapshots", () => {
         const netKernel: any = new (Kernel as any)(new InMemoryFileSystem());
         netKernel.startNetworking();
         (await import("./services")).startHttpd(netKernel, { port: 8080 });
-        const sock = netKernel["state"].tcp.connect("127.0.0.1", 8080);
-        await netKernel["state"].tcp.send(sock, new Uint8Array([1, 2, 3]));
+        const conn = netKernel["state"].tcp.connect("127.0.0.1", 8080);
+        conn.write(new Uint8Array([1, 2, 3]));
         const netSnap1 = netKernel.snapshot();
         const netRestored: any = await (Kernel as any).restore(netSnap1);
         netRestored.startNetworking();

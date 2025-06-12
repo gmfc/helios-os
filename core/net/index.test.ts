@@ -9,16 +9,18 @@ import { Router } from "./router";
 function testTcp() {
     const tcp = new TCP();
     let received: Uint8Array | null = null;
-    tcp.listen(8080, (data) => {
-        received = data;
+    tcp.listen(8080, (conn) => {
+        conn.onData((d) => {
+            received = d;
+        });
     });
-    const sock = tcp.connect("127.0.0.1", 8080);
+    const conn = tcp.connect("127.0.0.1", 8080);
     const payload = new Uint8Array([1, 2, 3]);
-    tcp.send(sock, payload);
+    conn.write(payload);
     assert(
         received &&
-            (received as Uint8Array).length === 3 &&
-            (received as Uint8Array)[0] === 1,
+            received.length === 3 &&
+            received[0] === 1,
         "TCP handler should receive data",
     );
     console.log("TCP listen/connect test passed.");
@@ -27,11 +29,11 @@ function testTcp() {
 function testUdp() {
     const udp = new UDP();
     let from: { ip: string; port: number } | null = null;
-    udp.listen(53, (_data, src) => {
-        from = src;
+    udp.listen(53, (conn) => {
+        from = { ip: conn.ip, port: conn.port };
     });
-    const sock = udp.connect("127.0.0.1", 53);
-    udp.send(sock, new Uint8Array([0]));
+    const conn = udp.connect("127.0.0.1", 53);
+    conn.write(new Uint8Array([0]));
     assert.deepStrictEqual(from, { ip: "127.0.0.1", port: 53 });
     console.log("UDP handler source info test passed.");
 }
@@ -83,15 +85,37 @@ function testRouter() {
 
 async function testTcpEcho() {
     const tcp = new TCP();
-    tcp.listen(9000, (data) => data);
-    const sock = tcp.connect("127.0.0.1", 9000);
+    tcp.listen(9000, (conn) => {
+        conn.onData((d) => {
+            conn.write(d);
+        });
+    });
+    const conn = tcp.connect("127.0.0.1", 9000);
+    let resp: Uint8Array | null = null;
+    conn.onData((d) => {
+        resp = d;
+    });
     const payload = new Uint8Array([9, 8, 7]);
-    const resp = await tcp.send(sock, payload);
+    conn.write(payload);
     assert(
         resp && resp.length === 3 && resp[0] === 9,
         "TCP send returns response",
     );
     console.log("TCP send response test passed.");
+}
+
+function testTcpPersistent() {
+    const tcp = new TCP();
+    let count = 0;
+    tcp.listen(7000, (conn) => {
+        conn.onData(() => {
+            count++;
+        });
+    });
+    const conn = tcp.connect("127.0.0.1", 7000);
+    conn.write(new Uint8Array([1]));
+    conn.write(new Uint8Array([2]));
+    assert.strictEqual(count, 2, "persistent connection receives multiple packets");
 }
 
 describe("Networking", () => {
@@ -102,4 +126,5 @@ describe("Networking", () => {
     it("TCP send response", async () => {
         await testTcpEcho();
     });
+    it("TCP persistent connection", testTcpPersistent);
 });

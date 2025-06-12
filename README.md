@@ -129,7 +129,7 @@ while (true) {
 | `close(fd)`               | releases handle   |
 | `spawn(code, opts)`       | new PID           |
 | `listen(port, proto, cb)` | service daemon    |
-| `connect(ip, port)`       | socket handle     |
+| `connect(ip, port)`       | socket connection |
 | `tcp_send(sock, bytes)`   | TCP send          |
 | `udp_send(sock, bytes)`   | UDP send          |
 | `draw(htmlBlob, opts)`    | open GUI window   |

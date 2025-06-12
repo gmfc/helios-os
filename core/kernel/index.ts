@@ -20,8 +20,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { eventBus } from "../utils/eventBus";
 import { NIC } from "../net/nic";
-import { TCP, TcpHandler } from "../net/tcp";
-import { UDP, UdpHandler } from "../net/udp";
+import {
+    TCP,
+    TcpHandler,
+    TcpConnection,
+} from "../net/tcp";
+import {
+    UDP,
+    UdpHandler,
+    UdpConnection,
+} from "../net/udp";
 import { Router } from "../net/router";
 import { BASH_SOURCE } from "../fs/bin";
 
@@ -52,13 +60,15 @@ function networkFrom(ip: string, mask: string): string {
 
 interface TcpInternal {
     listeners: Map<number, TcpHandler>;
-    sockets: Map<number, { ip: string; port: number }>;
+    connections: Map<number, TcpConnection>;
+    peers: Map<number, number>;
     nextSocket: number;
 }
 
 interface UdpInternal {
     listeners: Map<number, UdpHandler>;
-    sockets: Map<number, { ip: string; port: number }>;
+    connections: Map<number, UdpConnection>;
+    peers: Map<number, number>;
     nextSocket: number;
 }
 import { startHttpd, startSshd, startPingService } from "../services";
@@ -132,7 +142,7 @@ export interface SpawnOpts {
     tty?: string;
 }
 
-export type ServiceHandler = (data: Uint8Array) => Promise<Uint8Array | void>;
+export type ServiceHandler = (conn: TcpConnection | UdpConnection) => void;
 
 export interface WindowOpts {
     title?: string;
@@ -345,14 +355,24 @@ export class Kernel {
                 if (v.dataType === "TCP") {
                     const tcp = new TCP();
                     (tcp as unknown as TcpInternal).listeners = new Map(v.listeners as Iterable<[number, TcpHandler]> ?? []);
-                    (tcp as unknown as TcpInternal).sockets = new Map(v.sockets as Iterable<[number, { ip: string; port: number }]> ?? []);
+                    const conns = new Map<number, TcpConnection>();
+                    for (const [id, info] of (v.connections as Iterable<[number, { ip: string; port: number }]> ?? [])) {
+                        conns.set(id, new TcpConnection(tcp, id, info.ip, info.port));
+                    }
+                    (tcp as unknown as TcpInternal).connections = conns;
+                    (tcp as unknown as TcpInternal).peers = new Map(v.peers as Iterable<[number, number]> ?? []);
                     (tcp as unknown as TcpInternal).nextSocket = (v.nextSocket as number) ?? 1;
                     return tcp;
                 }
                 if (v.dataType === "UDP") {
                     const udp = new UDP();
                     (udp as unknown as UdpInternal).listeners = new Map(v.listeners as Iterable<[number, UdpHandler]> ?? []);
-                    (udp as unknown as UdpInternal).sockets = new Map(v.sockets as Iterable<[number, { ip: string; port: number }]> ?? []);
+                    const uconns = new Map<number, UdpConnection>();
+                    for (const [id, info] of (v.connections as Iterable<[number, { ip: string; port: number }]> ?? [])) {
+                        uconns.set(id, new UdpConnection(udp, id, info.ip, info.port));
+                    }
+                    (udp as unknown as UdpInternal).connections = uconns;
+                    (udp as unknown as UdpInternal).peers = new Map(v.peers as Iterable<[number, number]> ?? []);
                     (udp as unknown as UdpInternal).nextSocket = (v.nextSocket as number) ?? 1;
                     return udp;
                 }
@@ -462,9 +482,25 @@ export class Kernel {
         name: string,
         port: number,
         proto: string,
-        handler: ServiceHandler,
+        handler: ServiceHandler | {
+            onConnect?: (c: TcpConnection | UdpConnection) => void;
+            onData?: (c: TcpConnection | UdpConnection, d: Uint8Array) => void;
+            onClose?: (c: TcpConnection | UdpConnection) => void;
+        },
     ): void {
-        this.syscall_listen(port, proto, handler);
+        if (proto === "tcp" && typeof handler === "object") {
+            this.syscall_listen(port, proto, (conn) => {
+                handler.onConnect?.(conn);
+                if (handler.onData) conn.onData((d) => handler.onData?.(conn, d));
+            });
+        } else if (proto === "udp" && typeof handler === "object") {
+            this.syscall_listen(port, proto, (conn) => {
+                handler.onConnect?.(conn);
+                if (handler.onData) conn.onData((d) => handler.onData?.(conn, d));
+            });
+        } else {
+            this.syscall_listen(port, proto, handler as ServiceHandler);
+        }
         const services = new Map(this.state.services);
         services.set(name, { port, proto });
         this.state = { ...this.state, services };
@@ -591,7 +627,8 @@ export class Kernel {
                 return {
                     dataType: "TCP",
                     listeners: Array.from(tcpVal.listeners.entries()),
-                    sockets: Array.from(tcpVal.sockets.entries()),
+                    connections: Array.from(tcpVal.connections.entries()).map(([k, c]) => [k, { ip: c.ip, port: c.port }]),
+                    peers: Array.from(tcpVal.peers.entries()),
                     nextSocket: tcpVal.nextSocket,
                 };
             }
@@ -600,7 +637,8 @@ export class Kernel {
                 return {
                     dataType: "UDP",
                     listeners: Array.from(udpVal.listeners.entries()),
-                    sockets: Array.from(udpVal.sockets.entries()),
+                    connections: Array.from(udpVal.connections.entries()).map(([k, c]) => [k, { ip: c.ip, port: c.port }]),
+                    peers: Array.from(udpVal.peers.entries()),
                     nextSocket: udpVal.nextSocket,
                 };
             }

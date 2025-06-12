@@ -66,7 +66,7 @@ export const BROWSER_MANIFEST = JSON.stringify({
 
 export const PING_MANIFEST = JSON.stringify({
     name: "ping",
-    syscalls: ["connect", "tcp_send", "write"],
+    syscalls: ["udp_connect", "write"],
 });
 
 export const DESKTOP_MANIFEST = JSON.stringify({
