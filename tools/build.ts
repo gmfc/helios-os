@@ -1,4 +1,5 @@
 import { build as esbuild, context } from "esbuild";
+import { builtinModules } from "module";
 import { copyFile, mkdir } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -20,6 +21,11 @@ export async function buildUI(opts: BuildOptions = {}) {
 
     await mkdir(outDir, { recursive: true });
 
+    const externals = [
+        ...builtinModules,
+        ...builtinModules.map((m) => `node:${m}`),
+    ];
+
     const ctx = await context({
         entryPoints: [path.join("ui", "index.tsx")],
         bundle: true,
@@ -29,6 +35,7 @@ export async function buildUI(opts: BuildOptions = {}) {
         tsconfig: path.join("tsconfig.json"),
         sourcemap: dev,
         minify: !dev,
+        external: externals,
     });
 
     if (watch) {
