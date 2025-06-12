@@ -430,6 +430,7 @@ export async function syscall_spawn(
     pcb.spawnOpts = { ...opts };
     pcb.argv = opts.argv ?? [];
     this.readyQueue.push(pcb);
+    (this as any).idleDelay = (this as any).baseIdleDelay;
     if (code === BASH_SOURCE) {
         eventBus.emit("boot.shellReady", { pid });
     }
