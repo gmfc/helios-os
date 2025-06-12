@@ -1,9 +1,15 @@
 // Process management utilities for the Helios-OS Kernel
 
 import { invoke } from "@tauri-apps/api/core";
+import { totalmem } from "node:os";
 import type { SyscallDispatcher, SpawnOptions } from "./syscalls";
 import type { Kernel } from "./index";
 import { eventBus } from "../utils/eventBus";
+
+export const DEFAULT_QUOTA_MEM = Math.max(
+    2 * 1024 * 1024,
+    Math.floor(totalmem() / 128),
+);
 
 export type ProcessID = number;
 export type FileDescriptor = number;
@@ -55,7 +61,7 @@ export function createProcess(this: Kernel): ProcessID {
         cwd: "/",
         quotaMs: 10,
         quotaMs_total: Infinity,
-        quotaMem: 8 * 1024 * 1024,
+        quotaMem: DEFAULT_QUOTA_MEM,
         cpuMs: 0,
         memBytes: 0,
         quotaViolations: 0,
