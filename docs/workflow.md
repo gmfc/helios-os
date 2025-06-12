@@ -42,6 +42,7 @@ The project enforces TypeScript strict mode. Use four spaces for indentation and
 
 1. Add a new file in `apps/cli/programs/` that exports an async `main(syscall, argv)` function.
 2. Run `pnpm build:apps` to regenerate `core/fs/generatedApps.ts` and commit the result.
+3. CLI programs run in a sandbox. The build process fails if Node/Electron APIs are detected unless the manifest entry sets `allowNode: true`.
 
 ### Creating new apps
 
