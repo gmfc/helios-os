@@ -189,6 +189,12 @@ while (true) {
 
 Kernel denies undeclared syscalls.
 
+Command line wrappers simplify running the built-in daemons. Use
+`httpd`, `ftpd`, `ssh` or `smtp` to start the respective services from
+the shell. The `sendmail` and `mail` tools talk to the SMTP/IMAP
+servers, while the coin example demonstrates a basic peer started with
+`startCoinService`.
+
 ---
 
 ## 7 — Security Model

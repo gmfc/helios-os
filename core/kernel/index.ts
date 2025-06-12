@@ -74,6 +74,9 @@ import {
     startPingService,
     startSmtpd,
     startImapd,
+    startFtpd,
+    startNamed,
+    startCoinService,
 } from "../services";
 import {
     ProcessID,
@@ -449,6 +452,12 @@ export class Kernel {
                 startSshd(kernel, { port: svc.port });
             } else if (name.startsWith("pingd")) {
                 startPingService(kernel, { port: svc.port });
+            } else if (name.startsWith("ftpd")) {
+                startFtpd(kernel, { port: svc.port });
+            } else if (name.startsWith("named")) {
+                void startNamed(kernel, { port: svc.port });
+            } else if (name.startsWith("coind")) {
+                startCoinService(kernel, { port: svc.port });
             } else if (name.startsWith("smtpd")) {
                 startSmtpd(kernel, { port: svc.port });
             } else if (name.startsWith("imapd")) {

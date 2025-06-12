@@ -56,7 +56,8 @@ supported and uploads/downloads are limited to a few megabytes.
 ## smtp
 
 `smtp [port] [root]` runs the simple mail daemon described below which
-stores incoming messages under `/var/mail`.
+stores incoming messages under `/var/mail`. Use `sendmail` to submit
+messages and `mail` to read them via the IMAP interface.
 
 ## Host hub communication
 
@@ -70,8 +71,8 @@ players share the same simulated network.
 
 ## sshd
 
-A minimal SSH-like daemon can be started from TypeScript using
-`startSshd(kernel, { port: 22 })`. Each connection is given its own
+The `ssh` command starts a minimal SSH-like daemon, equivalent to
+calling `startSshd(kernel, { port: 22 })` from TypeScript. Each connection is given its own
 pseudo-terminal and spawns `/bin/bash` inside the VM. Any username and
 password are currently accepted. Once running you can connect from the
 kernel's TCP stack or a host client:
@@ -104,4 +105,11 @@ QUIT
 
 The bundled `sendmail` and `mail` CLI utilities wrap these protocols for quick
 testing.
+
+
+## coin
+
+The peer-to-peer coin daemon is started with `startCoinService(kernel, { port: 3333 })`.
+Blocks are exchanged over UDP and mined with a simple proof-of-work. A
+small example program resides under `apps/examples/coin.ts`.
 
