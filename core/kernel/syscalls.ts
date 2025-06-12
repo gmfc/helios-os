@@ -139,11 +139,15 @@ export function createSyscallDispatcher(
             case "nic_config":
                 return this.syscall_nic_config(args[0], args[1], args[2]);
             case "create_nic":
-                return this.syscall_create_nic(args[0], args[1], args[2], args[3]);
+                return this.syscall_create_nic(args[0], args[1], args[2], args[3], args[4]);
             case "remove_nic":
                 return this.syscall_remove_nic(args[0]);
             case "dhcp_request":
                 return this.syscall_dhcp_request(args[0]);
+            case "wifi_scan":
+                return this.syscall_wifi_scan();
+            case "wifi_join":
+                return this.syscall_wifi_join(args[0], args[1], args[2]);
             case "route_add":
                 return this.syscall_route_add(args[0], args[1]);
             case "route_del":
@@ -663,9 +667,10 @@ export function syscall_create_nic(
     mac: string,
     ip?: string,
     mask?: string,
+    type: "wired" | "wifi" = "wired",
 ) {
     if (this.state.nics.has(id)) return -1;
-    const nic = new NIC(id, mac, ip, mask);
+    const nic = new NIC(id, mac, ip, mask, "down", undefined, type);
     this.state.nics.set(id, nic);
     return 0;
 }
@@ -694,6 +699,41 @@ export function syscall_dhcp_request(this: Kernel, id: string) {
     this.state.routes.set("10.0.0.0/24", id);
     this.router.addRoute("10.0.0.0/24", nic);
     return { ip, netmask: mask };
+}
+
+/** Scan for available Wi-Fi networks */
+export async function syscall_wifi_scan(this: Kernel) {
+    try {
+        const list: string[] = await invoke("wifi_scan", {});
+        return list;
+    } catch {
+        return [];
+    }
+}
+
+/** Join a Wi-Fi network */
+export async function syscall_wifi_join(
+    this: Kernel,
+    id: string,
+    ssid: string,
+    pass: string,
+) {
+    const nic = this.state.nics.get(id);
+    if (!nic) return -1;
+    try {
+        const ok: boolean = await invoke("wifi_join", {
+            nicId: id,
+            ssid,
+            passphrase: pass,
+        });
+        if (!ok) return -1;
+        nic.ssid = ssid;
+        nic.status = "up";
+        await this.syscall_dhcp_request(id);
+        return 0;
+    } catch {
+        return -1;
+    }
 }
 
 /** Add a route */

@@ -110,6 +110,8 @@ import {
     syscall_create_nic,
     syscall_remove_nic,
     syscall_dhcp_request,
+    syscall_wifi_scan,
+    syscall_wifi_join,
     syscall_route_add,
     syscall_route_del,
 } from "./syscalls";
@@ -334,6 +336,7 @@ export class Kernel {
                         v.netmask as string | undefined,
                         (v.status as "up" | "down") ?? "down",
                         v.ssid as string | undefined,
+                        (v.type as "wired" | "wifi") ?? "wired",
                     );
                     nic.rx = (v.rx as unknown[]) ?? [];
                     nic.tx = (v.tx as unknown[]) ?? [];
@@ -502,6 +505,7 @@ export class Kernel {
                 nic.netmask,
                 (nic.status as "up" | "down") ?? "down",
                 nic.ssid,
+                (nic.type as "wired" | "wifi") ?? "wired",
             );
             n.rx = nic.rx ?? [];
             n.tx = nic.tx ?? [];
@@ -573,6 +577,7 @@ export class Kernel {
                     dataType: "NIC",
                     id: value.id,
                     mac: value.mac,
+                    type: value.type,
                     ip: value.ip,
                     netmask: value.netmask,
                     status: value.status,
@@ -747,9 +752,13 @@ export const kernelTest = (typeof vitest !== "undefined" || process.env.VITEST)
               mac: string,
               ip?: string,
               mask?: string,
-          ) => syscall_create_nic.call(k, id, mac, ip, mask),
+              type?: "wired" | "wifi",
+          ) => syscall_create_nic.call(k, id, mac, ip, mask, type),
           syscall_remove_nic: (k: Kernel, id: string) => syscall_remove_nic.call(k, id),
           syscall_dhcp_request: (k: Kernel, id: string) => syscall_dhcp_request.call(k, id),
+          syscall_wifi_scan: (k: Kernel) => syscall_wifi_scan.call(k),
+          syscall_wifi_join: (k: Kernel, id: string, ssid: string, pass: string) =>
+              syscall_wifi_join.call(k, id, ssid, pass),
           syscall_route_add: (k: Kernel, cidr: string, nic: string) =>
               syscall_route_add.call(k, cidr, nic),
           syscall_route_del: (k: Kernel, cidr: string) =>

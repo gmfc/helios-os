@@ -37,4 +37,35 @@ describe("NIC syscalls", () => {
         const r2 = kernelTest!.syscall_dhcp_request(k, "eth1");
         assert(r1.ip !== r2.ip, "addresses must be unique");
     });
+
+    it("wifi scan and join", async () => {
+        // @ts-ignore
+        globalThis.window = {} as any;
+        const { mockIPC, clearMocks } = await import("@tauri-apps/api/mocks");
+        mockIPC((cmd, args) => {
+            if (cmd === "wifi_scan") {
+                return ["helios"];
+            }
+            if (cmd === "wifi_join") {
+                return args.ssid === "helios" && args.passphrase === "password";
+            }
+            if (cmd === "register_nic") {
+                return null;
+            }
+            return null;
+        });
+
+        const k = kernelTest!.createKernel(new InMemoryFileSystem());
+        k.startNetworking();
+        kernelTest!.syscall_create_nic(k, "wlan0", "AA:BB:CC:DD:EE:03", undefined, undefined, "wifi");
+        const ssids = await kernelTest!.syscall_wifi_scan(k);
+        assert(ssids.includes("helios"), "scan returns ssid");
+        const res = await kernelTest!.syscall_wifi_join(k, "wlan0", "helios", "password");
+        assert.strictEqual(res, 0, "join success");
+        const nic = kernelTest!.getState(k).nics.get("wlan0")!;
+        assert(nic.ip !== undefined, "dhcp assigned");
+        clearMocks();
+        // @ts-ignore
+        delete globalThis.window;
+    });
 });

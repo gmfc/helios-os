@@ -100,6 +100,12 @@ static NIC_QUEUES: Lazy<Mutex<HashMap<String, std::collections::VecDeque<Value>>
     Lazy::new(|| Mutex::new(HashMap::new()));
 static NIC_IDS: Lazy<Mutex<HashMap<String, String>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
+static WIFI_APS: Lazy<Mutex<Vec<(String, String)>>> = Lazy::new(|| {
+    Mutex::new(vec![
+        ("helios".to_string(), "password".to_string()),
+        ("guest".to_string(), "guest".to_string()),
+    ])
+});
 
 struct JsRuntime {
     isolate: Option<v8::OwnedIsolate>,
@@ -290,6 +296,25 @@ fn receive_frames(nic_id: String) -> Result<Value, String> {
 }
 
 #[tauri::command]
+fn wifi_scan() -> Result<Value, String> {
+    let aps = WIFI_APS.lock().unwrap();
+    let list: Vec<Value> = aps.iter().map(|(s, _)| Value::String(s.clone())).collect();
+    Ok(Value::Array(list))
+}
+
+#[tauri::command]
+fn wifi_join(nic_id: String, ssid: String, passphrase: String) -> Result<bool, String> {
+    let aps = WIFI_APS.lock().unwrap();
+    for (s, p) in aps.iter() {
+        if *s == ssid && *p == passphrase {
+            // registration already done when NIC created
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+#[tauri::command]
 async fn run_isolate(
     app: tauri::AppHandle,
     code: String,
@@ -412,6 +437,8 @@ fn main() {
             register_nic,
             send_frame,
             receive_frames,
+            wifi_scan,
+            wifi_join,
             syscall_response,
             drop_isolate
         ])
