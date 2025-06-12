@@ -2,6 +2,7 @@ import assert from "assert";
 import { describe, it, beforeEach, afterEach } from "vitest";
 import fs from "fs";
 import { PersistentFileSystem } from "./persistent";
+import { Kernel, kernelTest } from "../kernel";
 
 type InvokeHandler = (cmd: string, args: any) => any;
 
@@ -33,6 +34,7 @@ function setup(dbPath: string) {
     let nextId = 2;
     let inodes = new Map<number, Inode>();
     let fileData = new Map<number, Uint8Array>();
+    let compileCache = new Map<string, { js: Uint8Array; mtime: number }>();
 
     const load = () => {
         if (fs.existsSync(dbPath)) {
@@ -45,6 +47,14 @@ function setup(dbPath: string) {
                     new Uint8Array(v[1]),
                 ]),
             );
+            compileCache = new Map(
+                (obj.compileCache ?? []).map(
+                    (v: [string, { js: number[]; mtime: number }]) => [
+                        v[0],
+                        { js: new Uint8Array(v[1].js), mtime: v[1].mtime },
+                    ],
+                ),
+            );
         }
     };
 
@@ -56,6 +66,9 @@ function setup(dbPath: string) {
                 k,
                 Array.from(v),
             ]),
+            compileCache: Array.from(compileCache.entries()).map(
+                ([h, c]) => [h, { js: Array.from(c.js), mtime: c.mtime }],
+            ),
         };
         fs.writeFileSync(dbPath, JSON.stringify(obj));
     };
@@ -166,6 +179,12 @@ function setup(dbPath: string) {
                     persist();
                     return [1, undefined];
                 }
+                if (q.startsWith("REPLACE INTO compile_cache") || q.startsWith("INSERT INTO compile_cache")) {
+                    const [sha, data, mtime] = vals;
+                    compileCache.set(sha, { js: new Uint8Array(data), mtime });
+                    persist();
+                    return [1, undefined];
+                }
                 if (q.startsWith("UPDATE inodes SET size")) {
                     const [size, ts, id] = vals;
                     const node = inodes.get(id)!;
@@ -226,6 +245,16 @@ function setup(dbPath: string) {
                     const [id] = vals;
                     const d = fileData.get(id) || new Uint8Array();
                     return [{ blob: d }];
+                }
+                if (
+                    q.startsWith(
+                        "SELECT compiled_js, ts_mtime FROM compile_cache WHERE sha256=?1",
+                    )
+                ) {
+                    const [sha] = vals;
+                    const entry = compileCache.get(sha);
+                    if (!entry) return [];
+                    return [{ compiled_js: entry.js, ts_mtime: entry.mtime }];
                 }
                 if (q.startsWith("SELECT * FROM inodes WHERE parent_id=?1")) {
                     const [pid] = vals;
@@ -301,5 +330,54 @@ describe("PersistentFileSystem", () => {
 
     it("persistent fs", async () => {
         await run();
+    });
+
+    it("compile cache persists", async () => {
+        const db = "compile_cache_test.json";
+        const cleanupLocal = setup(db);
+        let fs1 = await PersistentFileSystem.load();
+        const k1 = new Kernel(fs1 as any);
+        (k1 as any).createProcess = () => {
+            const pid = (k1 as any).state.nextPid++;
+            (k1 as any).state.processes.set(pid, {
+                pid,
+                isolateId: pid,
+                fds: new Map(),
+                nextFd: 3,
+            });
+            return pid;
+        };
+        await k1.spawn("cat");
+        const src = new TextDecoder().decode(await fs1.read("/bin/cat"));
+        const sha = require("crypto").createHash("sha256").update(src).digest("hex");
+        const rows1 = await (fs1 as any).db.select(
+            "SELECT compiled_js, ts_mtime FROM compile_cache WHERE sha256=?1",
+            [sha],
+        );
+        await (fs1 as any).db.close();
+        cleanupLocal();
+        assert.strictEqual(rows1.length, 1, "cache populated");
+
+        const cleanupLocal2 = setup(db);
+        let fs2 = await PersistentFileSystem.load();
+        const k2 = new Kernel(fs2 as any);
+        (k2 as any).createProcess = () => {
+            const pid = (k2 as any).state.nextPid++;
+            (k2 as any).state.processes.set(pid, {
+                pid,
+                isolateId: pid,
+                fds: new Map(),
+                nextFd: 3,
+            });
+            return pid;
+        };
+        await k2.spawn("cat");
+        const rows2 = await (fs2 as any).db.select(
+            "SELECT compiled_js, ts_mtime FROM compile_cache WHERE sha256=?1",
+            [sha],
+        );
+        await (fs2 as any).db.close();
+        cleanupLocal2();
+        assert.strictEqual(rows2.length, 1, "cache reused");
     });
 });

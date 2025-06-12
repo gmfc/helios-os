@@ -9,6 +9,7 @@ import {
 } from "../fs";
 import type { AsyncFileSystem } from "../fs/async";
 import { bootstrapFileSystem } from "../fs/pure";
+import { PersistentFileSystem } from "../fs/persistent";
 import {
     createPersistHook,
     loadKernelSnapshot,
@@ -132,10 +133,27 @@ import {
     syscall_route_add,
     syscall_route_del,
 } from "./syscalls";
+import { transform } from "esbuild";
+import vm from "node:vm";
+import { createHash } from "node:crypto";
 
 type Program = {
     main: (syscall: SyscallDispatcher, argv: string[]) => Promise<number>;
 };
+
+async function compileProgram(source: string): Promise<string> {
+    if (/function\s+main/.test(source)) return source;
+    const res = await transform(source, {
+        loader: "ts",
+        format: "cjs",
+        platform: "node",
+    });
+    const mod = { exports: {} as any };
+    vm.runInNewContext(res.code, { module: mod, exports: mod.exports, require });
+    const fn = (mod.exports as any).main;
+    if (typeof fn !== "function") throw new Error("No main function");
+    return fn.toString();
+}
 
 export interface SpawnOpts {
     argv?: string[];
@@ -261,6 +279,24 @@ export class Kernel {
     private syscall_route_add = syscall_route_add;
     private syscall_route_del = syscall_route_del;
 
+    private async compileWithCache(source: string, mtime: number): Promise<string> {
+        const hash = createHash("sha256").update(source).digest("hex");
+        if (this.state.fs instanceof PersistentFileSystem) {
+            const cached = await this.state.fs.getCompileCache(hash);
+            if (cached && cached.ts_mtime === mtime) {
+                return new TextDecoder().decode(cached.compiled_js);
+            }
+            const compiled = await compileProgram(source);
+            await this.state.fs.setCompileCache(
+                hash,
+                new TextEncoder().encode(compiled),
+                mtime,
+            );
+            return compiled;
+        }
+        return compileProgram(source);
+    }
+
     private constructor(fs: AsyncFileSystem) {
         this.state = {
             fs,
@@ -318,15 +354,18 @@ export class Kernel {
             );
         }
         try {
+            const node = await fs.open("/sbin/init", "r");
             const initData = await fs.read("/sbin/init");
             const code = new TextDecoder().decode(initData);
+            const mtime = node?.modifiedAt.getTime() ?? Date.now();
             let syscalls: string[] | undefined;
             try {
                 const mdata = await fs.read("/sbin/init.manifest.json");
                 const parsed = JSON.parse(new TextDecoder().decode(mdata));
                 if (Array.isArray(parsed.syscalls)) syscalls = parsed.syscalls;
             } catch {}
-            kernel.initPid = await kernel.syscall_spawn(code, { syscalls });
+            const compiled = await kernel.compileWithCache(code, mtime);
+            kernel.initPid = await kernel.syscall_spawn(compiled, { syscalls });
         } catch (e) {
             console.error("Failed to spawn init:", e);
         }
@@ -505,9 +544,12 @@ export class Kernel {
         const manifestPath = `/bin/${progName}.manifest.json`;
 
         let source: string;
+        let mtime = Date.now();
         try {
+            const node = await this.state.fs.open(path, "r");
             const data = await this.state.fs.read(path);
             source = new TextDecoder().decode(data);
+            mtime = node?.modifiedAt.getTime() ?? mtime;
         } catch (e) {
             console.error(`-helios: ${progName}: command not found`);
             return 127;
@@ -520,7 +562,9 @@ export class Kernel {
             if (Array.isArray(syscalls)) manifestSyscalls = syscalls;
         } catch {}
 
-        return this.syscall_spawn(source, {
+        const compiled = await this.compileWithCache(source, mtime);
+
+        return this.syscall_spawn(compiled, {
             argv,
             syscalls: manifestSyscalls,
             ...opts,

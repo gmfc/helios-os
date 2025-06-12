@@ -578,6 +578,32 @@ export class PersistentFileSystem implements AsyncFileSystem {
         this.cache.delete(path);
     }
 
+    async getCompileCache(
+        sha: string,
+    ): Promise<{ compiled_js: Uint8Array; ts_mtime: number } | undefined> {
+        const rows = await this.db.select<{
+            compiled_js: Uint8Array;
+            ts_mtime: number;
+        }[]>(
+            "SELECT compiled_js, ts_mtime FROM compile_cache WHERE sha256=?1",
+            [sha],
+        );
+        if (rows.length === 0) return undefined;
+        const row = rows[0];
+        return { compiled_js: row.compiled_js, ts_mtime: row.ts_mtime };
+    }
+
+    async setCompileCache(
+        sha: string,
+        js: Uint8Array,
+        ts_mtime: number,
+    ): Promise<void> {
+        await this.db.execute(
+            "REPLACE INTO compile_cache (sha256, compiled_js, ts_mtime) VALUES (?1, ?2, ?3)",
+            [sha, js, ts_mtime],
+        );
+    }
+
     /**
      * Run WAL recovery and basic integrity checks.
      * Recreates missing core directories.
