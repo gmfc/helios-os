@@ -17,8 +17,11 @@ export class NIC {
         public netmask?: string,
         public status: "up" | "down" = "down",
         public ssid?: string,
+        public type: "wired" | "wifi" = "wired",
     ) {
-        invoke("register_nic", { id, mac }).catch(() => {});
+        if (this.type === "wired") {
+            invoke("register_nic", { id, mac }).catch(() => {});
+        }
     }
 
     send(frame: Frame) {

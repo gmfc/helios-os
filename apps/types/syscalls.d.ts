@@ -34,9 +34,11 @@ export interface SyscallDispatcher {
     (call: "list_nics"): Promise<Array<{ id: string; mac: string; ip?: string; netmask?: string; status: string; ssid?: string }>>;
     (call: "nic_up" | "nic_down", id: string): Promise<number>;
     (call: "nic_config", id: string, ip: string, mask: string): Promise<number>;
-    (call: "create_nic", id: string, mac: string, ip?: string, mask?: string): Promise<number>;
+    (call: "create_nic", id: string, mac: string, ip?: string, mask?: string, type?: "wired" | "wifi"): Promise<number>;
     (call: "remove_nic", id: string): Promise<number>;
     (call: "dhcp_request", id: string): Promise<{ ip: string; netmask: string } | number>;
+    (call: "wifi_scan"): Promise<string[]>;
+    (call: "wifi_join", id: string, ssid: string, passphrase: string): Promise<number>;
     (call: "reboot"): Promise<number>;
     (call: string, ...args: any[]): Promise<any>;
 }

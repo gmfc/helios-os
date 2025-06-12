@@ -27,6 +27,8 @@ const manifests: Record<string, any> = {
         name: "dhclient",
         syscalls: ["dhcp_request", "write"],
     },
+    iwlist: { name: "iwlist", syscalls: ["wifi_scan", "write"] },
+    iwconfig: { name: "iwconfig", syscalls: ["wifi_join", "write"] },
     route: { name: "route", syscalls: ["route_add", "route_del", "write"] },
     ifconfig: {
         name: "ifconfig",
@@ -73,6 +75,8 @@ const bundledOrder = [
     "nano",
     "browser",
     "ping",
+    "iwlist",
+    "iwconfig",
     "dhclient",
     "route",
     "ifconfig",

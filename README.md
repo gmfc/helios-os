@@ -80,11 +80,12 @@ interface FSNode {
 
 interface NIC {
   id: string;
-  mode: 'ethernet'|'wifi';
+  type: 'wired'|'wifi';
   mac: string;
   ip?: string;
   rx: Packet[];
   tx: Packet[];
+  ssid?: string;
 }
 ```
 
