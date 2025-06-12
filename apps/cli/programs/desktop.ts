@@ -1,5 +1,5 @@
 import type { SyscallDispatcher } from "../../types/syscalls";
-import { eventBus } from "../../../core/utils/eventBus";
+
 
 export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<number> {
     const STDERR_FD = 2;
@@ -54,22 +54,27 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
         </style>
         <div id="clock"></div>
         <script>
-        onMessage((msg)=>{
-            if(msg.type==='tick'){
-                document.getElementById('clock').textContent=new Date(msg.time).toLocaleTimeString();
+        let raf;
+        function tick(){
+            document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+            raf = requestAnimationFrame(tick);
+        }
+        document.addEventListener('visibilitychange', () => {
+            if(document.hidden){
+                cancelAnimationFrame(raf);
+            } else {
+                tick();
             }
         });
+        tick();
         </script>
     `;
-    const panelId = await syscall('draw', new TextEncoder().encode(panelHtml), {
+    await syscall('draw', new TextEncoder().encode(panelHtml), {
         title: 'Panel',
         width: 800,
         height: 30,
         x: 0,
         y: 0,
     });
-    setInterval(() => {
-        eventBus.emit('desktop.windowPost', { id: panelId, data: { type: 'tick', time: Date.now() } });
-    }, 1000);
     return 0;
 }
