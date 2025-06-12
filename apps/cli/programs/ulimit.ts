@@ -4,7 +4,7 @@ export async function main(syscall: SyscallDispatcher, argv: string[]): Promise<
     const STDOUT_FD = 1;
     const encode = (s: string) => new TextEncoder().encode(s);
 
-    let result = 0;
+    const result = 0;
 
     if (argv.length === 0) {
         const res = await syscall('set_quota');
