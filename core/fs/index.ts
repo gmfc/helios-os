@@ -103,6 +103,12 @@ export class InMemoryFileSystem implements AsyncFileSystem {
     private initDefaultFiles() {
         this.createDirectory("/etc", 0o755);
         this.createFile("/etc/issue", "Welcome to Helios-OS v0.1\n", 0o644);
+        this.createFile(
+            "/etc/input.json",
+            JSON.stringify({ fontFamily: "monospace", fontSize: 14, keymap: {} }) +
+                "\n",
+            0o644,
+        );
 
         this.createDirectory("/dev", 0o755);
         this.createFile("/dev/tty0", new Uint8Array(), 0o666);
