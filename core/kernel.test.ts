@@ -96,6 +96,7 @@ describe("Kernel", () => {
             pcb.exitCode = 0;
             pcb.cpuMs += 5;
             pcb.memBytes += 1024;
+            pcb.cpuHistory.push(5);
             runs++;
             if (runs >= 2) pcb.exited = true;
         });
@@ -366,6 +367,20 @@ describe("Kernel", () => {
                 text.includes("pid:\t" + procPid),
             "status file readable",
         );
+        const cmdFd = await kernelTest!.syscall_open(
+            procKernel,
+            procPcb,
+            `/proc/${procPid}/cmdline`,
+            "r",
+        );
+        const cmdData = await kernelTest!.syscall_read(
+            procKernel,
+            procPcb,
+            cmdFd,
+            1024,
+        );
+        const cmdText = new TextDecoder().decode(cmdData);
+        assert.strictEqual(cmdText, "", "cmdline should return empty string");
         try {
             await kernelTest!.syscall_open(
                 procKernel,

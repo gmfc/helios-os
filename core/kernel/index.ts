@@ -91,6 +91,7 @@ import {
     registerProcFd,
     removeProcFd,
     procStatus,
+    procCmdline,
     runProcess,
     registerJob,
     removeJob,
@@ -250,6 +251,7 @@ export class Kernel {
     private registerProcFd = registerProcFd;
     private removeProcFd = removeProcFd;
     private procStatus = procStatus;
+    private procCmdline = procCmdline;
     private updateProcMounts = updateProcMounts;
     private runProcess = runProcess;
     public registerJob = registerJob;
@@ -543,6 +545,7 @@ export class Kernel {
             const pcb = kernel.state.processes.get(pid)!;
             if (pcb.quotaMs_total === undefined) pcb.quotaMs_total = Infinity;
             if (pcb.started === undefined) pcb.started = false;
+            if (!Array.isArray(pcb.cpuHistory)) pcb.cpuHistory = [];
             for (const fd of pcb.fds.keys()) {
                 kernel.registerProcFd(pid, fd);
             }

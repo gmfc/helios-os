@@ -899,15 +899,20 @@ export function syscall_ps(this: Kernel) {
         argv?: string[];
         exited?: boolean;
         cpuMs: number;
+        recentCpuMs: number;
         memBytes: number;
         tty?: string;
     }> = [];
     for (const [pid, pcb] of this.state.processes.entries()) {
+        const recentCpuMs = Array.isArray(pcb.cpuHistory)
+            ? pcb.cpuHistory.reduce((n, v) => n + v, 0)
+            : 0;
         list.push({
             pid,
             argv: pcb.argv,
             exited: pcb.exited,
             cpuMs: pcb.cpuMs,
+            recentCpuMs,
             memBytes: pcb.memBytes,
             tty: pcb.tty,
         });
