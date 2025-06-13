@@ -52,6 +52,8 @@ features are noted where relevant. Reference lines are cited from the repository
 ## 8. Security & Sandboxing
 - **Iframe FS isolation** – GUI apps must not read `file:///` URLs (sandbox checks).
 - **CPU quota enforcement** – kill processes stuck in infinite loops without freezing desktop.
+    - Host (Rust/Tauri): monitor wall-clock per process; send SIGXCPU on excess.
+    - Kernel: handle SIGXCPU → terminate process, log to /var/log/kernel.
 - **Package capability checks** – block native Node API usage unless granted at install time.
 - **postMessage validation** – discard messages with spoofed window IDs.
 
