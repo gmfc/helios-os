@@ -91,54 +91,40 @@ export function cleanupProcess(this: Kernel, pid: ProcessID): void {
 }
 
 export function ensureProcRoot(this: Kernel): void {
-    const fsAny = this.state.fs as any;
-    if (
-        typeof fsAny.getNode !== "function" ||
-        typeof fsAny.createVirtualDirectory !== "function"
-    ) {
-        return;
-    }
-    if (!fsAny.getNode("/proc")) {
-        fsAny.createVirtualDirectory("/proc", 0o555);
+    if (!this.state.fs.getNode("/proc")) {
+        this.state.fs.createVirtualDirectory("/proc", 0o555);
     }
 }
 
 export function registerProc(this: Kernel, pid: ProcessID): void {
     this.ensureProcRoot();
-    const fsAny = this.state.fs as any;
-    if (
-        typeof fsAny.getNode !== "function" ||
-        typeof fsAny.createVirtualDirectory !== "function" ||
-        typeof fsAny.createVirtualFile !== "function"
-    ) {
-        return;
+    if (!this.state.fs.getNode(`/proc/${pid}`)) {
+        this.state.fs.createVirtualDirectory(`/proc/${pid}`, 0o555);
     }
-    if (!fsAny.getNode(`/proc/${pid}`)) {
-        fsAny.createVirtualDirectory(`/proc/${pid}`, 0o555);
+    if (!this.state.fs.getNode(`/proc/${pid}/status`)) {
+        this.state.fs.createVirtualFile(
+            `/proc/${pid}/status`,
+            () => this.procStatus(pid),
+            0o444,
+        );
     }
-    if (!fsAny.getNode(`/proc/${pid}/status`)) {
-        fsAny.createVirtualFile(`/proc/${pid}/status`, () => this.procStatus(pid), 0o444);
+    if (!this.state.fs.getNode(`/proc/${pid}/cmdline`)) {
+        this.state.fs.createVirtualFile(
+            `/proc/${pid}/cmdline`,
+            () => this.procCmdline(pid),
+            0o444,
+        );
     }
-    if (!fsAny.getNode(`/proc/${pid}/cmdline`)) {
-        fsAny.createVirtualFile(`/proc/${pid}/cmdline`, () => this.procCmdline(pid), 0o444);
-    }
-    if (!fsAny.getNode(`/proc/${pid}/fd`)) {
-        fsAny.createVirtualDirectory(`/proc/${pid}/fd`, 0o555);
+    if (!this.state.fs.getNode(`/proc/${pid}/fd`)) {
+        this.state.fs.createVirtualDirectory(`/proc/${pid}/fd`, 0o555);
     }
 }
 
 export function registerProcFd(this: Kernel, pid: ProcessID, fd: number): void {
     const pcb = this.state.processes.get(pid);
     if (!pcb) return;
-    const fsAny = this.state.fs as any;
-    if (
-        typeof fsAny.getNode !== "function" ||
-        typeof fsAny.createVirtualFile !== "function"
-    ) {
-        return;
-    }
-    if (!fsAny.getNode(`/proc/${pid}/fd/${fd}`)) {
-        fsAny.createVirtualFile(
+    if (!this.state.fs.getNode(`/proc/${pid}/fd/${fd}`)) {
+        this.state.fs.createVirtualFile(
             `/proc/${pid}/fd/${fd}`,
             () => {
                 const entry = pcb.fds.get(fd);
@@ -151,15 +137,8 @@ export function registerProcFd(this: Kernel, pid: ProcessID, fd: number): void {
 
 export function removeProcFd(this: Kernel, pid: ProcessID, fd: number): void {
     const path = `/proc/${pid}/fd/${fd}`;
-    const fsAny = this.state.fs as any;
-    if (
-        typeof fsAny.getNode !== "function" ||
-        typeof fsAny.remove !== "function"
-    ) {
-        return;
-    }
-    if (fsAny.getNode(path)) {
-        fsAny.remove(path);
+    if (this.state.fs.getNode(path)) {
+        this.state.fs.remove(path);
     }
 }
 
@@ -170,14 +149,10 @@ export function updateProcMounts(this: Kernel): void {
         ([mount, file]) => `${mount} ${file}`,
     );
     const data = entries.join("\n") + (entries.length ? "\n" : "");
-    const fsAny = this.state.fs as any;
-    if (typeof fsAny.getNode !== "function" || typeof fsAny.createVirtualFile !== "function") {
-        return;
-    }
-    const existing = fsAny.getNode("/proc/mounts");
+    const existing = this.state.fs.getNode("/proc/mounts");
     const reader = () => enc.encode(data);
     if (!existing) {
-        fsAny.createVirtualFile("/proc/mounts", reader, 0o444);
+        this.state.fs.createVirtualFile("/proc/mounts", reader, 0o444);
     } else if (existing.kind === "file") {
         existing.onRead = reader;
     }

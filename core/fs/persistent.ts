@@ -77,6 +77,26 @@ type Inode = {
 export class PersistentFileSystem implements AsyncFileSystem {
     private cache = new LRUCache<string, Inode | null>(256);
 
+    private deasync<T>(promise: Promise<T>): T {
+        let done = false;
+        let value: T | undefined;
+        let error: unknown;
+        promise.then(
+            (v) => {
+                value = v;
+                done = true;
+            },
+            (e) => {
+                error = e;
+                done = true;
+            },
+        );
+        const buf = new Int32Array(new SharedArrayBuffer(4));
+        while (!done) Atomics.wait(buf, 0, 0, 10);
+        if (error) throw error;
+        return value as T;
+    }
+
     constructor(private db: Database) {}
 
     static async load(): Promise<PersistentFileSystem> {
@@ -637,6 +657,52 @@ export class PersistentFileSystem implements AsyncFileSystem {
         } finally {
             await this.db.close();
         }
+    }
+
+    // Minimal synchronous wrappers used during tests
+    getNode(path: string): FileSystemNode | undefined {
+        return this.deasync(this.open(path).catch(() => undefined));
+    }
+    createFile(
+        path: string,
+        data: string | Uint8Array,
+        permissions: Permissions,
+    ): FileSystemNode {
+        const buf =
+            typeof data === "string" ? new TextEncoder().encode(data) : data;
+        return this.deasync(this.createFileInternal(path, permissions, buf).then((i) => this.toNode(path, i)));
+    }
+    createDirectory(path: string, permissions: Permissions): FileSystemNode {
+        return this.deasync(this.createDirectoryInternal(path, permissions).then((i) => this.toNode(path, i)));
+    }
+    createVirtualFile(
+        path: string,
+        _onRead: () => Uint8Array | FileSystemNode[],
+        permissions: Permissions,
+    ): FileSystemNode {
+        return this.createFile(path, new Uint8Array(), permissions);
+    }
+    createVirtualDirectory(path: string, permissions: Permissions): FileSystemNode {
+        return this.createDirectory(path, permissions);
+    }
+    writeFile(path: string, data: Uint8Array): FileSystemNode {
+        this.deasync(this.write(path, data));
+        return this.getNode(path)!;
+    }
+    readFile(path: string): Uint8Array {
+        return this.deasync(this.read(path));
+    }
+    listDirectory(path: string): FileSystemNode[] {
+        return this.deasync(this.readdir(path));
+    }
+    remove(path: string): void {
+        this.deasync(this.unlink(path));
+    }
+    getSnapshot(): FileSystemSnapshot {
+        throw new Error("snapshot not supported for PersistentFileSystem");
+    }
+    clone(): AsyncFileSystem {
+        return this;
     }
 }
 
