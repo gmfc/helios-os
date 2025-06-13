@@ -9,6 +9,7 @@ import {
     syscall_unlink,
     syscall_rename,
     syscall_readdir,
+    syscall_set_quota,
 } from "./kernel/syscalls";
 import * as fs from "fs/promises";
 import path from "path";
@@ -49,11 +50,23 @@ describe("Kernel", () => {
             kernelTest!.getState(kernel).fs.getNode("/mnt/foo.txt"),
             "file mounted",
         );
+        let mounts = await kernelTest!.getState(kernel).fs.read("/proc/mounts");
+        let text = new TextDecoder().decode(mounts);
+        assert(text.includes("/mnt"), "/proc/mounts lists mount");
+        await assert.rejects(
+            async () => {
+                await kernelTest!.syscall_mount(kernel, tmp, "/mnt");
+            },
+            /EEXIST/,
+        );
         await kernelTest!.syscall_unmount(kernel, "/mnt");
         assert(
             !kernelTest!.getState(kernel).fs.getNode("/mnt/foo.txt"),
             "file unmounted",
         );
+        mounts = await kernelTest!.getState(kernel).fs.read("/proc/mounts");
+        text = new TextDecoder().decode(mounts);
+        assert(text === "", "mounts cleared after unmount");
         await fs.unlink(tmp);
     });
 
@@ -449,6 +462,39 @@ describe("Kernel", () => {
             quotaPcb.exited,
             true,
             "process should exit when exceeding memory quota",
+        );
+    });
+
+    it("cpu quota kills runaway process", async () => {
+        globalThis.window = {} as any;
+        globalThis.window.crypto = {
+            getRandomValues: (arr: Uint32Array) =>
+                require("crypto").randomFillSync(arr),
+        };
+        const { mockIPC, clearMocks } = await import("@tauri-apps/api/mocks");
+        let calls = 0;
+        mockIPC(() => {
+            calls++;
+            return { running: true, cpu_ms: 3, mem_bytes: 0 };
+        });
+        const cpuKernel = kernelTest!.createKernel(new InMemoryFileSystem());
+        const cpuPid = await kernelTest!.syscall_spawn(cpuKernel, "dummy", {
+            quotaMs: 1,
+        });
+        const cpuPcb = kernelTest!
+            .getState(cpuKernel)
+            .processes.get(cpuPid)!;
+        syscall_set_quota.call(cpuKernel, cpuPcb, undefined, undefined, 5);
+        await kernelTest!.runProcess(cpuKernel, cpuPcb);
+        await kernelTest!.runProcess(cpuKernel, cpuPcb);
+        clearMocks();
+        // @ts-ignore
+        delete globalThis.window;
+        assert(calls >= 2);
+        assert.strictEqual(
+            cpuPcb.exited,
+            true,
+            "process exits after exceeding cpu quota",
         );
     });
 
