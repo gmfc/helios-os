@@ -34,6 +34,8 @@ export interface ProcessControlBlock {
     quotaMem: number;
     cpuMs: number;
     memBytes: number;
+    /** Recent CPU slice history for moving average */
+    cpuHistory: number[];
     /** Number of times the process has exceeded CPU or memory quota. */
     quotaViolations?: number;
     tty?: string;
@@ -64,6 +66,7 @@ export function createProcess(this: Kernel): ProcessID {
         quotaMem: DEFAULT_QUOTA_MEM,
         cpuMs: 0,
         memBytes: 0,
+        cpuHistory: [],
         quotaViolations: 0,
         tty: undefined,
         started: false,
@@ -115,6 +118,9 @@ export function registerProc(this: Kernel, pid: ProcessID): void {
     }
     if (!fsAny.getNode(`/proc/${pid}/status`)) {
         fsAny.createVirtualFile(`/proc/${pid}/status`, () => this.procStatus(pid), 0o444);
+    }
+    if (!fsAny.getNode(`/proc/${pid}/cmdline`)) {
+        fsAny.createVirtualFile(`/proc/${pid}/cmdline`, () => this.procCmdline(pid), 0o444);
     }
     if (!fsAny.getNode(`/proc/${pid}/fd`)) {
         fsAny.createVirtualDirectory(`/proc/${pid}/fd`, 0o555);
@@ -189,6 +195,14 @@ export function procStatus(this: Kernel, pid: ProcessID): Uint8Array {
     return enc.encode(out);
 }
 
+export function procCmdline(this: Kernel, pid: ProcessID): Uint8Array {
+    const pcb = this.state.processes.get(pid);
+    if (!pcb) return new Uint8Array();
+    const enc = new TextEncoder();
+    const out = (pcb.argv ?? []).join("\0");
+    return enc.encode(out + (out ? "\0" : ""));
+}
+
 export async function runProcess(
     this: Kernel,
     pcb: ProcessControlBlock,
@@ -212,8 +226,11 @@ export async function runProcess(
             pcb.code = undefined;
         }
         if (result) {
-            pcb.cpuMs += result.cpu_ms ?? 0;
+            const slice = result.cpu_ms ?? 0;
+            pcb.cpuMs += slice;
             pcb.memBytes += result.mem_bytes ?? 0;
+            pcb.cpuHistory.push(slice);
+            if (pcb.cpuHistory.length > 60) pcb.cpuHistory.shift();
             if (pcb.cpuMs > pcb.quotaMs_total || pcb.memBytes > pcb.quotaMem) {
                 pcb.quotaViolations = (pcb.quotaViolations ?? 0) + 1;
                 if (pcb.quotaViolations > 1) {
