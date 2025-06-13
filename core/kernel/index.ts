@@ -133,6 +133,7 @@ import {
     syscall_wifi_join,
     syscall_route_add,
     syscall_route_del,
+    syscall_single_user,
 } from "./syscalls";
 import { transform } from "esbuild";
 import vm from "node:vm";
@@ -241,6 +242,7 @@ export class Kernel {
     private dhcpNextHost = 2;
     private readonly baseIdleDelay = 10;
     private idleDelay = this.baseIdleDelay;
+    private singleUser = false;
     private createProcess = createProcess;
     private cleanupProcess = cleanupProcess;
     private ensureProcRoot = ensureProcRoot;
@@ -285,6 +287,7 @@ export class Kernel {
     private syscall_dhcp_request = syscall_dhcp_request;
     private syscall_route_add = syscall_route_add;
     private syscall_route_del = syscall_route_del;
+    private syscall_single_user = syscall_single_user;
 
     private async compileWithCache(source: string, mtime: number): Promise<string> {
         const hash = createHash("sha256").update(source).digest("hex");
@@ -966,6 +969,8 @@ export const kernelTest =
                   syscall_route_add.call(k, cidr, nic),
               syscall_route_del: (k: Kernel, cidr: string) =>
                   syscall_route_del.call(k, cidr),
+              syscall_single_user: (k: Kernel, on?: boolean) =>
+                  syscall_single_user.call(k, on),
               getRouter: (k: Kernel) => (k as any).router as Router,
               addMonitor: (k: Kernel, w: number, h: number) =>
                   k.addMonitor(w, h),
