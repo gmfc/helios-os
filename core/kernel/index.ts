@@ -95,6 +95,7 @@ import {
     registerJob,
     removeJob,
     updateJobStatus,
+    updateProcMounts,
 } from "./process";
 import {
     SyscallDispatcher,
@@ -247,6 +248,7 @@ export class Kernel {
     private registerProcFd = registerProcFd;
     private removeProcFd = removeProcFd;
     private procStatus = procStatus;
+    private updateProcMounts = updateProcMounts;
     private runProcess = runProcess;
     public registerJob = registerJob;
     public removeJob = removeJob;
@@ -319,6 +321,7 @@ export class Kernel {
         eventBus.on("desktop.windowRecv", (payload) =>
             this.handleWindowMessage(payload),
         );
+        this.updateProcMounts();
     }
 
     /**
