@@ -45,6 +45,166 @@ export type SyscallDispatcher = (
  * receives a dispatcher that validates the allowed syscall list before routing
  * the call to the kernel implementation.
  */
+type SyscallHandler = (
+    this: Kernel,
+    pcb: ProcessControlBlock,
+    args: unknown[],
+) => Promise<unknown>;
+
+const SYSCALL_HANDLERS: Record<string, SyscallHandler> = {
+    open(pcb, args) {
+        return this.syscall_open(pcb, args[0] as string, args[1] as string);
+    },
+    read(pcb, args) {
+        return this.syscall_read(pcb, args[0] as FileDescriptor, args[1] as number);
+    },
+    wait(pcb, args) {
+        return this.syscall_wait(pcb, args[0] as FileDescriptor);
+    },
+    write(pcb, args) {
+        return this.syscall_write(pcb, args[0] as FileDescriptor, args[1] as Uint8Array);
+    },
+    close(pcb, args) {
+        return this.syscall_close(pcb, args[0] as FileDescriptor);
+    },
+    async spawn(pcb, args) {
+        const pidNew = await this.syscall_spawn(args[0] as string, args[1]);
+        const child = this.state.processes.get(pidNew);
+        if (child) child.cwd = (args[1]?.cwd as string | undefined) ?? pcb.cwd;
+        return pidNew;
+    },
+    listen(pcb, args) {
+        return this.syscall_listen(args[0] as number, args[1] as string, args[2] as ServiceHandler);
+    },
+    connect(pcb, args) {
+        return this.syscall_connect(args[0] as string, args[1] as number);
+    },
+    udp_connect(pcb, args) {
+        return this.syscall_udp_connect(args[0] as string, args[1] as number);
+    },
+    tcp_send(pcb, args) {
+        return this.syscall_tcp_send(args[0] as TcpConnection, args[1] as Uint8Array);
+    },
+    udp_send(pcb, args) {
+        return this.syscall_udp_send(args[0] as UdpConnection, args[1] as Uint8Array);
+    },
+    draw(pcb, args) {
+        return this.syscall_draw(pcb, args[0] as Uint8Array, args[1] as WindowOpts);
+    },
+    mkdir(pcb, args) {
+        return this.syscall_mkdir(pcb, args[0] as string, args[1] as number);
+    },
+    readdir(pcb, args) {
+        return this.syscall_readdir(pcb, args[0] as string);
+    },
+    unlink(pcb, args) {
+        return this.syscall_unlink(pcb, args[0] as string);
+    },
+    rename(pcb, args) {
+        return this.syscall_rename(pcb, args[0] as string, args[1] as string);
+    },
+    add_monitor(pcb, args) {
+        return this.sys_add_monitor(args[0] as number, args[1] as number);
+    },
+    remove_monitor(pcb, args) {
+        return this.sys_remove_monitor(args[0] as number);
+    },
+    mount(pcb, args) {
+        return this.syscall_mount(args[0] as FileSystem, resolvePath(pcb, args[1] as string));
+    },
+    unmount(pcb, args) {
+        return this.syscall_unmount(resolvePath(pcb, args[0] as string));
+    },
+    chdir(pcb, args) {
+        return this.syscall_chdir(pcb, args[0] as string);
+    },
+    set_quota(pcb, args) {
+        return this.syscall_set_quota(pcb, args[0] as number, args[1] as number);
+    },
+    kill(pcb, args) {
+        return this.syscall_kill(args[0] as ProcessID, args[1] as number | undefined);
+    },
+    single_user(pcb, args) {
+        return this.syscall_single_user(args[0] as boolean | undefined);
+    },
+    snapshot() {
+        return Promise.resolve(this.snapshot());
+    },
+    save_snapshot() {
+        persistKernelSnapshot(this.snapshot());
+        return Promise.resolve(0);
+    },
+    async save_snapshot_named(pcb, args) {
+        await saveNamedSnapshot(args[0] as string, this.snapshot());
+        return 0;
+    },
+    async load_snapshot_named(pcb, args) {
+        const snap = await loadNamedSnapshot(args[0] as string);
+        if (!snap) return -1;
+        this.running = false;
+        persistKernelSnapshot(snap);
+        eventBus.emit("system.reboot", {});
+        return 0;
+    },
+    ps() {
+        return Promise.resolve(this.syscall_ps());
+    },
+    jobs() {
+        return Promise.resolve(this.syscall_jobs());
+    },
+    window_owners() {
+        return Promise.resolve(this.syscall_window_owners());
+    },
+    list_services() {
+        return Promise.resolve(this.syscall_list_services());
+    },
+    stop_service(pcb, args) {
+        return this.syscall_stop_service(args[0] as number);
+    },
+    list_nics() {
+        return Promise.resolve(this.syscall_list_nics());
+    },
+    nic_up(pcb, args) {
+        return this.syscall_nic_up(args[0] as string);
+    },
+    nic_down(pcb, args) {
+        return this.syscall_nic_down(args[0] as string);
+    },
+    nic_config(pcb, args) {
+        return this.syscall_nic_config(args[0] as string, args[1] as string, args[2] as string);
+    },
+    create_nic(pcb, args) {
+        return this.syscall_create_nic(
+            args[0] as string,
+            args[1] as string,
+            args[2] as string | undefined,
+            args[3] as string | undefined,
+            args[4] as "wired" | "wifi" | undefined,
+        );
+    },
+    remove_nic(pcb, args) {
+        return this.syscall_remove_nic(args[0] as string);
+    },
+    dhcp_request(pcb, args) {
+        return this.syscall_dhcp_request(args[0] as string);
+    },
+    wifi_scan() {
+        return this.syscall_wifi_scan();
+    },
+    wifi_join(pcb, args) {
+        return this.syscall_wifi_join(args[0] as string, args[1] as string, args[2] as string);
+    },
+    route_add(pcb, args) {
+        return this.syscall_route_add(args[0] as string, args[1] as string);
+    },
+    route_del(pcb, args) {
+        return this.syscall_route_del(args[0] as string);
+    },
+    reboot() {
+        return Promise.resolve(this.reboot());
+    },
+};
+
 export function createSyscallDispatcher(
     this: Kernel,
     pid: ProcessID,
@@ -65,125 +225,11 @@ export function createSyscallDispatcher(
             );
         }
 
-        switch (call) {
-            case "open":
-                return await this.syscall_open(pcb, args[0], args[1]);
-            case "read":
-                return await this.syscall_read(pcb, args[0], args[1]);
-            case "wait":
-                return await this.syscall_wait(pcb, args[0]);
-            case "write":
-                return await this.syscall_write(pcb, args[0], args[1]);
-            case "close":
-                return await this.syscall_close(pcb, args[0]);
-            case "spawn": {
-                const pidNew = await this.syscall_spawn(args[0], args[1]);
-                const child = this.state.processes.get(pidNew);
-                if (child)
-                    child.cwd = (args[1]?.cwd as string | undefined) ?? pcb.cwd;
-                return pidNew;
-            }
-            case "listen":
-                return this.syscall_listen(args[0], args[1], args[2]);
-            case "connect":
-                return this.syscall_connect(args[0], args[1]);
-            case "udp_connect":
-                return this.syscall_udp_connect(args[0], args[1]);
-            case "tcp_send":
-                return this.syscall_tcp_send(args[0], args[1]);
-            case "udp_send":
-                return this.syscall_udp_send(args[0], args[1]);
-            case "draw":
-                return this.syscall_draw(pcb, args[0], args[1]);
-            case "mkdir":
-                return await this.syscall_mkdir(pcb, args[0], args[1]);
-            case "readdir":
-                return await this.syscall_readdir(pcb, args[0]);
-            case "unlink":
-                return await this.syscall_unlink(pcb, args[0]);
-            case "rename":
-                return await this.syscall_rename(pcb, args[0], args[1]);
-            case "add_monitor":
-                return this.sys_add_monitor(args[0], args[1]);
-            case "remove_monitor":
-                return this.sys_remove_monitor(args[0]);
-            case "mount":
-                return await this.syscall_mount(
-                    args[0],
-                    resolvePath(pcb, args[1]),
-                );
-            case "unmount":
-                return await this.syscall_unmount(resolvePath(pcb, args[0]));
-            case "chdir":
-                return this.syscall_chdir(pcb, args[0]);
-            case "set_quota":
-                return this.syscall_set_quota(pcb, args[0], args[1]);
-            case "kill":
-                return this.syscall_kill(args[0], args[1]);
-            case "single_user":
-                return this.syscall_single_user(args[0]);
-            case "snapshot":
-                return this.snapshot();
-            case "save_snapshot":
-                persistKernelSnapshot(this.snapshot());
-                return 0;
-            case "save_snapshot_named":
-                await saveNamedSnapshot(args[0], this.snapshot());
-                return 0;
-            case "load_snapshot_named": {
-                const snap = await loadNamedSnapshot(args[0]);
-                if (!snap) return -1;
-                this.running = false;
-                persistKernelSnapshot(snap);
-                eventBus.emit("system.reboot", {});
-                return 0;
-            }
-            case "ps":
-                return this.syscall_ps();
-            case "jobs":
-                return this.syscall_jobs();
-            case "window_owners":
-                return this.syscall_window_owners();
-            case "list_services":
-                return this.syscall_list_services();
-            case "stop_service":
-                return this.syscall_stop_service(args[0]);
-            case "list_nics":
-                return this.syscall_list_nics();
-            case "nic_up":
-                return this.syscall_nic_up(args[0]);
-            case "nic_down":
-                return this.syscall_nic_down(args[0]);
-            case "nic_config":
-                return this.syscall_nic_config(args[0], args[1], args[2]);
-            case "create_nic":
-                return this.syscall_create_nic(
-                    args[0],
-                    args[1],
-                    args[2],
-                    args[3],
-                    args[4],
-                );
-            case "remove_nic":
-                return this.syscall_remove_nic(args[0]);
-            case "dhcp_request":
-                return this.syscall_dhcp_request(args[0]);
-            case "wifi_scan":
-                return this.syscall_wifi_scan();
-            case "wifi_join":
-                return this.syscall_wifi_join(args[0], args[1], args[2]);
-            case "route_add":
-                return this.syscall_route_add(args[0], args[1]);
-            case "route_del":
-                return this.syscall_route_del(args[0]);
-            case "reboot":
-                return this.reboot();
-            default:
-                throw new KernelError(
-                    osConstants.errno.ENOSYS,
-                    `Unknown syscall: ${call}`,
-                );
+        const handler = SYSCALL_HANDLERS[call];
+        if (!handler) {
+            throw new KernelError(osConstants.errno.ENOSYS, `Unknown syscall: ${call}`);
         }
+        return handler.call(this, pcb, args);
     };
 }
 
