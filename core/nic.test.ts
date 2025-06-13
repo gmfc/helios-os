@@ -38,6 +38,17 @@ describe("NIC syscalls", () => {
         assert(r1.ip !== r2.ip, "addresses must be unique");
     });
 
+    it("dhcp increments leases", () => {
+        const k = kernelTest!.createKernel(new InMemoryFileSystem());
+        k.startNetworking();
+        kernelTest!.syscall_create_nic(k, "eth0", "AA:BB:CC:DD:EE:10");
+        kernelTest!.syscall_create_nic(k, "eth1", "AA:BB:CC:DD:EE:11");
+        const r1 = kernelTest!.syscall_dhcp_request(k, "eth0");
+        const r2 = kernelTest!.syscall_dhcp_request(k, "eth1");
+        assert.strictEqual(r1.ip, "10.0.0.2");
+        assert.strictEqual(r2.ip, "10.0.0.3");
+    });
+
     it("wifi scan and join", async () => {
         // @ts-ignore
         globalThis.window = {} as any;
