@@ -45,7 +45,7 @@ function maskBits(mask: string): number {
         );
 }
 
-function networkFrom(ip: string, mask: string): string {
+export function networkFrom(ip: string, mask: string): string {
     const netInt = ipToInt(ip) & ipToInt(mask);
     const parts = [
         (netInt >>> 24) & 0xff,

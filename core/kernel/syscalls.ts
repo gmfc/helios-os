@@ -12,6 +12,7 @@ import {
 import type { FileSystemNode, FileSystemSnapshot } from "../fs";
 import type { AsyncFileSystem } from "../fs/async";
 import type { Kernel, KernelState, WindowOpts, Snapshot } from "./index";
+import { networkFrom } from "./index";
 import type { ProcessControlBlock, FileDescriptor, ProcessID } from "./process";
 import type { ServiceHandler } from "./index";
 import { KernelError } from "./error";
@@ -1006,22 +1007,21 @@ export function syscall_remove_nic(this: Kernel, id: string) {
 }
 
 /** Obtain an IP via DHCP */
-export function syscall_dhcp_request(this: Kernel, id: string) {
+export async function syscall_dhcp_request(this: Kernel, id: string) {
     const nic = this.state.nics.get(id);
     if (!nic) return -1;
-    let host = 2;
-    const used = new Set<string>();
-    for (const n of this.state.nics.values()) {
-        if (n.ip) used.add(n.ip);
+    try {
+        const res: { ip: string; netmask: string } = await invoke("dhcp_request", {
+            nicId: id,
+        });
+        nic.ip = res.ip;
+        nic.netmask = res.netmask;
+        const cidr = networkFrom(res.ip, res.netmask);
+        this.syscall_route_add(cidr, id);
+        return res;
+    } catch {
+        return -1;
     }
-    while (used.has(`10.0.0.${host}`)) host++;
-    const ip = `10.0.0.${host}`;
-    const mask = "255.255.255.0";
-    nic.ip = ip;
-    nic.netmask = mask;
-    this.state.routes.set("10.0.0.0/24", id);
-    this.router.addRoute("10.0.0.0/24", nic);
-    return { ip, netmask: mask };
 }
 
 /** Scan for available Wi-Fi networks */
