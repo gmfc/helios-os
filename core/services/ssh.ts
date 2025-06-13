@@ -18,7 +18,7 @@ export function startSshd(kernel: Kernel, opts: SshOptions = {}): void {
             let ptyId: number | null = null;
 
             const ptys = (kernel as any).ptys;
-            const fs = (kernel as any).state.fs as any;
+            const fs = (kernel as any).state.fs;
 
             function startShell() {
                 const alloc = ptys.allocate();

@@ -88,33 +88,33 @@ export function cleanupProcess(this: Kernel, pid: ProcessID): void {
 }
 
 export function ensureProcRoot(this: Kernel): void {
-    if (!(this.state.fs as any).getNode("/proc")) {
-        (this.state.fs as any).createVirtualDirectory("/proc", 0o555);
+    if (!this.state.fs.getNode("/proc")) {
+        this.state.fs.createVirtualDirectory("/proc", 0o555);
     }
 }
 
 export function registerProc(this: Kernel, pid: ProcessID): void {
     this.ensureProcRoot();
-    if (!(this.state.fs as any).getNode(`/proc/${pid}`)) {
-        (this.state.fs as any).createVirtualDirectory(`/proc/${pid}`, 0o555);
+    if (!this.state.fs.getNode(`/proc/${pid}`)) {
+        this.state.fs.createVirtualDirectory(`/proc/${pid}`, 0o555);
     }
-    if (!(this.state.fs as any).getNode(`/proc/${pid}/status`)) {
-        (this.state.fs as any).createVirtualFile(
+    if (!this.state.fs.getNode(`/proc/${pid}/status`)) {
+        this.state.fs.createVirtualFile(
             `/proc/${pid}/status`,
             () => this.procStatus(pid),
             0o444,
         );
     }
-    if (!(this.state.fs as any).getNode(`/proc/${pid}/fd`)) {
-        (this.state.fs as any).createVirtualDirectory(`/proc/${pid}/fd`, 0o555);
+    if (!this.state.fs.getNode(`/proc/${pid}/fd`)) {
+        this.state.fs.createVirtualDirectory(`/proc/${pid}/fd`, 0o555);
     }
 }
 
 export function registerProcFd(this: Kernel, pid: ProcessID, fd: number): void {
     const pcb = this.state.processes.get(pid);
     if (!pcb) return;
-    if (!(this.state.fs as any).getNode(`/proc/${pid}/fd/${fd}`)) {
-        (this.state.fs as any).createVirtualFile(
+    if (!this.state.fs.getNode(`/proc/${pid}/fd/${fd}`)) {
+        this.state.fs.createVirtualFile(
             `/proc/${pid}/fd/${fd}`,
             () => {
                 const entry = pcb.fds.get(fd);
@@ -127,8 +127,8 @@ export function registerProcFd(this: Kernel, pid: ProcessID, fd: number): void {
 
 export function removeProcFd(this: Kernel, pid: ProcessID, fd: number): void {
     const path = `/proc/${pid}/fd/${fd}`;
-    if ((this.state.fs as any).getNode(path)) {
-        (this.state.fs as any).remove(path);
+    if (this.state.fs.getNode(path)) {
+        this.state.fs.remove(path);
     }
 }
 

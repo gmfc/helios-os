@@ -31,7 +31,7 @@ const Terminal = forwardRef<TerminalHandles, TerminalProps>(({ kernel }, ref) =>
     useEffect(() => {
         async function loadSettings() {
             try {
-                const fs = (kernel as any).state.fs as any;
+                const fs = (kernel as any).state.fs;
                 const data: Uint8Array = await fs.read("/etc/input.json");
                 const text = new TextDecoder().decode(data);
                 const cfg = JSON.parse(text) as {

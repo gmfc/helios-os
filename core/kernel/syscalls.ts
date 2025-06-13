@@ -186,15 +186,15 @@ export async function syscall_open(
     const fullPath = resolvePath(pcb, path);
     if (fullPath === "/dev/ptmx") {
         const alloc = this.ptys.allocate();
-        if (!(this.state.fs as any).getNode(alloc.master)) {
-            (this.state.fs as any).createFile(
+        if (!this.state.fs.getNode(alloc.master)) {
+            this.state.fs.createFile(
                 alloc.master,
                 new Uint8Array(),
                 0o666,
             );
         }
-        if (!(this.state.fs as any).getNode(alloc.slave)) {
-            (this.state.fs as any).createFile(
+        if (!this.state.fs.getNode(alloc.slave)) {
+            this.state.fs.createFile(
                 alloc.slave,
                 new Uint8Array(),
                 0o666,
@@ -217,15 +217,15 @@ export async function syscall_open(
         const id = parseInt((ttyMatch || ptyMatch)![1], 10);
         if (!this.ptys.exists(id)) {
             const alloc = this.ptys.allocate();
-            if (!(this.state.fs as any).getNode(alloc.master)) {
-                (this.state.fs as any).createFile(
+            if (!this.state.fs.getNode(alloc.master)) {
+                this.state.fs.createFile(
                     alloc.master,
                     new Uint8Array(),
                     0o666,
                 );
             }
-            if (!(this.state.fs as any).getNode(alloc.slave)) {
-                (this.state.fs as any).createFile(
+            if (!this.state.fs.getNode(alloc.slave)) {
+                this.state.fs.createFile(
                     alloc.slave,
                     new Uint8Array(),
                     0o666,
@@ -424,15 +424,15 @@ export async function syscall_spawn(
     pcb.started = false;
     if (opts.pty) {
         const alloc = this.ptys.allocate();
-        if (!(this.state.fs as any).getNode(alloc.master)) {
-            (this.state.fs as any).createFile(
+        if (!this.state.fs.getNode(alloc.master)) {
+            this.state.fs.createFile(
                 alloc.master,
                 new Uint8Array(),
                 0o666,
             );
         }
-        if (!(this.state.fs as any).getNode(alloc.slave)) {
-            (this.state.fs as any).createFile(
+        if (!this.state.fs.getNode(alloc.slave)) {
+            this.state.fs.createFile(
                 alloc.slave,
                 new Uint8Array(),
                 0o666,
@@ -585,7 +585,7 @@ export async function syscall_mkdir(
 ): Promise<number> {
     const fullPath = resolvePath(pcb, path);
     const parentPath = getParentPath(fullPath);
-    const parent = (this.state.fs as any).getNode(parentPath);
+    const parent = this.state.fs.getNode(parentPath);
     if (parent) {
         const perm = parent.permissions;
         let rights = 0;
@@ -613,7 +613,7 @@ export async function syscall_readdir(
     path: string,
 ): Promise<FileSystemNode[]> {
     const fullPath = resolvePath(pcb, path);
-    const node = (this.state.fs as any).getNode(fullPath);
+    const node = this.state.fs.getNode(fullPath);
     if (node) {
         const perm = node.permissions;
         let rights = 0;
@@ -640,7 +640,7 @@ export async function syscall_unlink(
     path: string,
 ): Promise<number> {
     const fullPath = resolvePath(pcb, path);
-    const node = (this.state.fs as any).getNode(fullPath);
+    const node = this.state.fs.getNode(fullPath);
     if (node) {
         const perm = node.permissions;
         let rights = 0;
@@ -669,7 +669,7 @@ export async function syscall_rename(
     newPath: string,
 ): Promise<number> {
     const oldFull = resolvePath(pcb, oldPath);
-    const node = (this.state.fs as any).getNode(oldFull);
+    const node = this.state.fs.getNode(oldFull);
     if (node) {
         const perm = node.permissions;
         let rights = 0;

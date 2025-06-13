@@ -74,7 +74,7 @@ type Inode = {
     target?: string | null;
 };
 
-export class PersistentFileSystem implements AsyncFileSystem {
+export class PersistentFileSystem {
     private cache = new LRUCache<string, Inode | null>(256);
 
     constructor(private db: Database) {}
