@@ -824,6 +824,7 @@ export class Kernel {
 
 export type { ProcessID, FileDescriptor, ProcessControlBlock } from "./process";
 export type { SyscallDispatcher } from "./syscalls";
+export { KernelError } from "./error";
 
 declare const vitest: unknown | undefined;
 export const kernelTest =

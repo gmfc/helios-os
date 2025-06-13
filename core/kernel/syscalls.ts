@@ -14,8 +14,10 @@ import type { AsyncFileSystem } from "../fs/async";
 import type { Kernel, KernelState, WindowOpts, Snapshot } from "./index";
 import type { ProcessControlBlock, FileDescriptor, ProcessID } from "./process";
 import type { ServiceHandler } from "./index";
+import { KernelError } from "./error";
 import * as fs from "node:fs/promises";
 import pathModule from "node:path";
+import { constants as osConstants } from "node:os";
 import { getParentPath } from "../utils/path";
 
 function resolvePath(pcb: ProcessControlBlock, p: string): string {
@@ -49,11 +51,17 @@ export function createSyscallDispatcher(
     return async (call: string, ...args: unknown[]): Promise<unknown> => {
         const pcb = this.state.processes.get(pid);
         if (!pcb) {
-            throw new Error(`Invalid PID ${pid} for syscall`);
+            throw new KernelError(
+                osConstants.errno.EPERM,
+                `Invalid PID ${pid} for syscall`,
+            );
         }
 
         if (pcb.allowedSyscalls && !pcb.allowedSyscalls.has(call)) {
-            throw new Error(`Syscall '${call}' not permitted`);
+            throw new KernelError(
+                osConstants.errno.EPERM,
+                `Syscall '${call}' not permitted`,
+            );
         }
 
         switch (call) {
@@ -168,7 +176,10 @@ export function createSyscallDispatcher(
             case "reboot":
                 return this.reboot();
             default:
-                throw new Error(`Unknown syscall: ${call}`);
+                throw new KernelError(
+                    osConstants.errno.ENOSYS,
+                    `Unknown syscall: ${call}`,
+                );
         }
     };
 }
@@ -245,7 +256,8 @@ export async function syscall_open(
     }
     const node = await this.state.fs.open(fullPath, flags);
     if (node.kind === "dir") {
-        throw new Error(
+        throw new KernelError(
+            osConstants.errno.EISDIR,
             `EISDIR: illegal operation on a directory, open '${fullPath}'`,
         );
     }
@@ -265,10 +277,16 @@ export async function syscall_open(
             rights = perm & 7;
         }
         if (needsRead && !(rights & 4)) {
-            throw new Error("EACCES: permission denied");
+            throw new KernelError(
+                osConstants.errno.EACCES,
+                "EACCES: permission denied",
+            );
         }
         if (needsWrite && !(rights & 2)) {
-            throw new Error("EACCES: permission denied");
+            throw new KernelError(
+                osConstants.errno.EACCES,
+                "EACCES: permission denied",
+            );
         }
     }
 
@@ -299,7 +317,10 @@ export async function syscall_read(
 ): Promise<Uint8Array> {
     const entry = pcb.fds.get(fd);
     if (!entry) {
-        throw new Error("EBADF: bad file descriptor");
+        throw new KernelError(
+            osConstants.errno.EBADF,
+            "EBADF: bad file descriptor",
+        );
     }
 
     if (entry.ttyId !== undefined) {
@@ -328,7 +349,10 @@ export async function syscall_write(
 
     const entry = pcb.fds.get(fd);
     if (!entry) {
-        throw new Error("EBADF: bad file descriptor");
+        throw new KernelError(
+            osConstants.errno.EBADF,
+            "EBADF: bad file descriptor",
+        );
     }
 
     if (entry.ttyId !== undefined) {
@@ -336,11 +360,17 @@ export async function syscall_write(
         return data.length;
     }
     if (entry.virtual) {
-        throw new Error("EBADF: file not opened for writing");
+        throw new KernelError(
+            osConstants.errno.EBADF,
+            "EBADF: file not opened for writing",
+        );
     }
 
     if (!entry.flags.includes("w") && !entry.flags.includes("a")) {
-        throw new Error("EBADF: file not opened for writing");
+        throw new KernelError(
+            osConstants.errno.EBADF,
+            "EBADF: file not opened for writing",
+        );
     }
 
     const current = await this.state.fs.read(entry.path);
@@ -381,7 +411,10 @@ export async function syscall_wait(
 ): Promise<number> {
     const entry = pcb.fds.get(fd);
     if (!entry || entry.ttyId === undefined) {
-        throw new Error("EBADF: bad file descriptor");
+        throw new KernelError(
+            osConstants.errno.EBADF,
+            "EBADF: bad file descriptor",
+        );
     }
     await this.ptys.wait(entry.ttyId, entry.ttySide as any);
     return 0;
@@ -490,7 +523,10 @@ export function syscall_listen(
     if (proto === "udp") {
         return this.state.udp.listen(port, cb as any);
     }
-    throw new Error("Unsupported protocol");
+    throw new KernelError(
+        osConstants.errno.EPROTONOSUPPORT,
+        "Unsupported protocol",
+    );
 }
 
 /**
@@ -599,7 +635,10 @@ export async function syscall_mkdir(
             rights = perm & 7;
         }
         if (!(rights & 2)) {
-            throw new Error("EACCES: permission denied");
+            throw new KernelError(
+                osConstants.errno.EACCES,
+                "EACCES: permission denied",
+            );
         }
     }
     await this.state.fs.mkdir(fullPath, perms);
@@ -627,7 +666,10 @@ export async function syscall_readdir(
             rights = perm & 7;
         }
         if (!(rights & 4)) {
-            throw new Error("EACCES: permission denied");
+            throw new KernelError(
+                osConstants.errno.EACCES,
+                "EACCES: permission denied",
+            );
         }
     }
     return this.state.fs.readdir(fullPath);
@@ -654,7 +696,10 @@ export async function syscall_unlink(
             rights = perm & 7;
         }
         if (!(rights & 2)) {
-            throw new Error("EACCES: permission denied");
+            throw new KernelError(
+                osConstants.errno.EACCES,
+                "EACCES: permission denied",
+            );
         }
     }
     await this.state.fs.unlink(fullPath);
@@ -683,7 +728,10 @@ export async function syscall_rename(
             rights = perm & 7;
         }
         if (!(rights & 2)) {
-            throw new Error("EACCES: permission denied");
+            throw new KernelError(
+                osConstants.errno.EACCES,
+                "EACCES: permission denied",
+            );
         }
     }
     await this.state.fs.rename(oldFull, resolvePath(pcb, newPath));
