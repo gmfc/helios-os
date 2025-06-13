@@ -1,4 +1,5 @@
 import { Kernel, TcpConnection } from "../kernel";
+import type { AsyncFileSystem } from "../fs/async";
 
 export interface SshOptions {
     port?: number;
@@ -8,6 +9,33 @@ export function startSshd(kernel: Kernel, opts: SshOptions = {}): void {
     const port = opts.port ?? 22;
     const enc = new TextEncoder();
     const dec = new TextDecoder();
+    const fs = kernel.state.fs as AsyncFileSystem;
+
+    async function checkPassword(u: string, p: string): Promise<boolean> {
+        try {
+            const data = await fs.read("/etc/passwd");
+            const text = dec.decode(data);
+            for (const line of text.split(/\r?\n/)) {
+                const [user, pass] = line.split(":");
+                if (user === u && pass === p) return true;
+            }
+        } catch {}
+        return false;
+    }
+
+    async function checkKey(u: string, key: string): Promise<boolean> {
+        const paths = [`/home/${u}/.ssh/authorized_keys`, "/etc/ssh/authorized_keys"];
+        for (const path of paths) {
+            try {
+                const data = await fs.read(path);
+                const text = dec.decode(data);
+                for (const line of text.split(/\r?\n/)) {
+                    if (line.trim() === key.trim()) return true;
+                }
+            } catch {}
+        }
+        return false;
+    }
 
     kernel.registerService(`sshd:${port}`, port, "tcp", {
         onConnect(conn: TcpConnection) {
@@ -46,9 +74,24 @@ export function startSshd(kernel: Kernel, opts: SshOptions = {}): void {
                         }
                     } else if (stage === "pass") {
                         if (ch === "\n") {
-                            stage = "shell";
-                            conn.write(enc.encode("\nWelcome to Helios-OS\n"));
-                            startShell();
+                            (async () => {
+                                let ok = false;
+                                if (pass.trim().startsWith("ssh-")) {
+                                    ok = await checkKey(user.trim(), pass.trim());
+                                } else {
+                                    ok = await checkPassword(user.trim(), pass.trim());
+                                }
+                                if (ok) {
+                                    stage = "shell";
+                                    conn.write(enc.encode("\nWelcome to Helios-OS\n"));
+                                    startShell();
+                                } else {
+                                    user = "";
+                                    pass = "";
+                                    stage = "user";
+                                    conn.write(enc.encode("\nLogin incorrect\nlogin: "));
+                                }
+                            })();
                         } else {
                             pass += ch;
                         }
