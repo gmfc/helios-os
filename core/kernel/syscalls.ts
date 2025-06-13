@@ -714,10 +714,19 @@ export async function syscall_mount(
 ): Promise<number> {
     const raw = await fs.readFile(imagePath, "utf8");
     const snap = JSON.parse(raw) as FileSystemSnapshot;
+    const kernelWithVolumes = this as unknown as {
+        mountedVolumes: Map<string, string>;
+        updateProcMounts: () => void;
+    };
+    if (kernelWithVolumes.mountedVolumes.has(mountPoint)) {
+        throw new Error(`EEXIST: mount point busy, mount '${mountPoint}'`);
+    }
     await this.state.fs.mount(snap, mountPoint);
-    (
-        this as unknown as { mountedVolumes: Map<string, string> }
-    ).mountedVolumes.set(mountPoint, pathModule.resolve(imagePath));
+    kernelWithVolumes.mountedVolumes.set(
+        mountPoint,
+        pathModule.resolve(imagePath),
+    );
+    kernelWithVolumes.updateProcMounts();
     return 0;
 }
 
@@ -728,6 +737,7 @@ export async function syscall_unmount(
 ): Promise<number> {
     const kernelWithVolumes = this as unknown as {
         mountedVolumes: Map<string, string>;
+        updateProcMounts: () => void;
     };
     const file = kernelWithVolumes.mountedVolumes.get(mountPoint);
     let snap: FileSystemSnapshot | undefined;
@@ -756,6 +766,7 @@ export async function syscall_unmount(
         await fs.writeFile(file, JSON.stringify(snap), "utf8");
         kernelWithVolumes.mountedVolumes.delete(mountPoint);
     }
+    kernelWithVolumes.updateProcMounts();
     return 0;
 }
 
