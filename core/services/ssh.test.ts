@@ -11,7 +11,9 @@ const dec = new TextDecoder();
 describe("SSH service", () => {
     it("spawns a shell after login", async () => {
         const tcp = new TCP();
-        const k1 = kernelTest!.createKernel(new InMemoryFileSystem());
+        const fs1 = new InMemoryFileSystem();
+        fs1.createFile("/etc/passwd", "user:pass\n", 0o644);
+        const k1 = kernelTest!.createKernel(fs1);
         const k2 = kernelTest!.createKernel(new InMemoryFileSystem());
         kernelTest!.getState(k1).tcp = tcp;
         kernelTest!.getState(k2).tcp = tcp;

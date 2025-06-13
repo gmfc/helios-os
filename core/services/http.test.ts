@@ -26,6 +26,9 @@ describe("HTTP service", () => {
         await new Promise((r) => setTimeout(r, 10));
         assert(resp.includes("200 OK"), "status 200");
         assert(resp.includes("hello world"), "body served");
+        assert(resp.includes("Content-Type: text/html"));
+        const log = dec.decode(await (kernelTest!.getState(kernel).fs as InMemoryFileSystem).read("/var/log/httpd"));
+        assert(log.includes("/index.html"));
         await hostfs.rm(rootDir, { recursive: true, force: true });
     });
 });
