@@ -100,6 +100,9 @@ static NIC_QUEUES: Lazy<Mutex<HashMap<String, std::collections::VecDeque<Value>>
     Lazy::new(|| Mutex::new(HashMap::new()));
 static NIC_IDS: Lazy<Mutex<HashMap<String, String>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
+static DHCP_LEASES: Lazy<Mutex<HashMap<String, String>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static DHCP_NEXT_HOST: AtomicUsize = AtomicUsize::new(2);
 static WIFI_APS: Lazy<Mutex<Vec<(String, String)>>> = Lazy::new(|| {
     Mutex::new(vec![
         ("helios".to_string(), "password".to_string()),
@@ -315,6 +318,34 @@ fn wifi_join(nic_id: String, ssid: String, passphrase: String) -> Result<bool, S
 }
 
 #[tauri::command]
+fn dhcp_request(nic_id: String) -> Result<Value, String> {
+    let mut leases = DHCP_LEASES.lock().unwrap();
+    if let Some(ip) = leases.get(&nic_id) {
+        return Ok(serde_json::json!({
+            "ip": ip,
+            "netmask": "255.255.255.0"
+        }));
+    }
+    let used: std::collections::HashSet<String> = leases
+        .values()
+        .cloned()
+        .collect();
+    let mut host = DHCP_NEXT_HOST.load(Ordering::SeqCst);
+    loop {
+        let ip = format!("10.0.0.{}", host);
+        if !used.contains(&ip) {
+            leases.insert(nic_id.clone(), ip.clone());
+            DHCP_NEXT_HOST.store(host + 1, Ordering::SeqCst);
+            return Ok(serde_json::json!({
+                "ip": ip,
+                "netmask": "255.255.255.0"
+            }));
+        }
+        host += 1;
+    }
+}
+
+#[tauri::command]
 async fn run_isolate(
     app: tauri::AppHandle,
     code: String,
@@ -440,6 +471,7 @@ fn main() {
             receive_frames,
             wifi_scan,
             wifi_join,
+            dhcp_request,
             syscall_response,
             drop_isolate
         ])

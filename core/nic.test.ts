@@ -28,37 +28,72 @@ describe("NIC syscalls", () => {
         assert(!list.find((n) => n.id === "eth0"), "interface removed");
     });
 
-    it("dhcp assigns unique ip", () => {
+    it("dhcp assigns unique ip", async () => {
+        // @ts-ignore
+        globalThis.window = {} as any;
+        const { mockIPC, clearMocks } = await import("@tauri-apps/api/mocks");
+        let host = 2;
+        mockIPC((cmd) => {
+            if (cmd === "dhcp_request") {
+                const ip = `10.0.0.${host++}`;
+                return { ip, netmask: "255.255.255.0" };
+            }
+            if (cmd === "register_nic") return null;
+            return null;
+        });
         const k = kernelTest!.createKernel(new InMemoryFileSystem());
         k.startNetworking();
         kernelTest!.syscall_create_nic(k, "eth0", "AA:BB:CC:DD:EE:01");
         kernelTest!.syscall_create_nic(k, "eth1", "AA:BB:CC:DD:EE:02");
-        const r1 = kernelTest!.syscall_dhcp_request(k, "eth0");
-        const r2 = kernelTest!.syscall_dhcp_request(k, "eth1");
+        const r1 = await kernelTest!.syscall_dhcp_request(k, "eth0");
+        const r2 = await kernelTest!.syscall_dhcp_request(k, "eth1");
         assert(r1.ip !== r2.ip, "addresses must be unique");
+        clearMocks();
+        // @ts-ignore
+        delete globalThis.window;
     });
 
-    it("dhcp increments leases", () => {
+    it("dhcp increments leases", async () => {
+        // @ts-ignore
+        globalThis.window = {} as any;
+        const { mockIPC, clearMocks } = await import("@tauri-apps/api/mocks");
+        let host = 2;
+        mockIPC((cmd) => {
+            if (cmd === "dhcp_request") {
+                const ip = `10.0.0.${host++}`;
+                return { ip, netmask: "255.255.255.0" };
+            }
+            if (cmd === "register_nic") return null;
+            return null;
+        });
         const k = kernelTest!.createKernel(new InMemoryFileSystem());
         k.startNetworking();
         kernelTest!.syscall_create_nic(k, "eth0", "AA:BB:CC:DD:EE:10");
         kernelTest!.syscall_create_nic(k, "eth1", "AA:BB:CC:DD:EE:11");
-        const r1 = kernelTest!.syscall_dhcp_request(k, "eth0");
-        const r2 = kernelTest!.syscall_dhcp_request(k, "eth1");
+        const r1 = await kernelTest!.syscall_dhcp_request(k, "eth0");
+        const r2 = await kernelTest!.syscall_dhcp_request(k, "eth1");
         assert.strictEqual(r1.ip, "10.0.0.2");
         assert.strictEqual(r2.ip, "10.0.0.3");
+        clearMocks();
+        // @ts-ignore
+        delete globalThis.window;
     });
 
     it("wifi scan and join", async () => {
         // @ts-ignore
         globalThis.window = {} as any;
         const { mockIPC, clearMocks } = await import("@tauri-apps/api/mocks");
+        let host = 2;
         mockIPC((cmd, args) => {
             if (cmd === "wifi_scan") {
                 return ["helios"];
             }
             if (cmd === "wifi_join") {
                 return args.ssid === "helios" && args.passphrase === "password";
+            }
+            if (cmd === "dhcp_request") {
+                const ip = `10.0.0.${host++}`;
+                return { ip, netmask: "255.255.255.0" };
             }
             if (cmd === "register_nic") {
                 return null;
