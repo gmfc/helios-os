@@ -557,9 +557,12 @@ export class Kernel {
 
     public allocatePty(): { id: number; master: string; slave: string } {
         const alloc = this.ptys.allocate();
-        const fs = this.state.fs as any;
-        if (!fs.getNode(alloc.master)) fs.createFile(alloc.master, new Uint8Array(), 0o666);
-        if (!fs.getNode(alloc.slave)) fs.createFile(alloc.slave, new Uint8Array(), 0o666);
+        if (!this.state.fs.getNode(alloc.master)) {
+            this.state.fs.createFile(alloc.master, new Uint8Array(), 0o666);
+        }
+        if (!this.state.fs.getNode(alloc.slave)) {
+            this.state.fs.createFile(alloc.slave, new Uint8Array(), 0o666);
+        }
         return alloc;
     }
 

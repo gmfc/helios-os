@@ -10,4 +10,27 @@ export interface AsyncFileSystem {
     rename(oldPath: string, newPath: string): Promise<void>;
     mount(image: FileSystemSnapshot, path: string): Promise<void>;
     unmount(path: string): Promise<void>;
+
+    /** Typed helper methods */
+    getNode(path: string): FileSystemNode | undefined;
+    createFile(
+        path: string,
+        data: string | Uint8Array,
+        permissions: Permissions,
+    ): FileSystemNode;
+    createDirectory(path: string, permissions: Permissions): FileSystemNode;
+    createVirtualFile(
+        path: string,
+        onRead: () => Uint8Array,
+        permissions: Permissions,
+    ): FileSystemNode;
+    createVirtualDirectory(
+        path: string,
+        permissions: Permissions,
+    ): FileSystemNode;
+    writeFile(path: string, data: Uint8Array): FileSystemNode;
+    readFile(path: string): Uint8Array;
+    listDirectory(path: string): FileSystemNode[];
+    remove(path: string): void;
+    snapshotSubtree?(path: string): FileSystemSnapshot;
 }
