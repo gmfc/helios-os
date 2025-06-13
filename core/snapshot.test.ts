@@ -1,7 +1,7 @@
 import assert from "assert";
 import { describe, it } from "vitest";
 import { createHash } from "node:crypto";
-import { Kernel } from "./kernel";
+import { Kernel, kernelTest } from "./kernel";
 import { InMemoryFileSystem } from "./fs";
 
 function checksum(obj: any): string {
@@ -37,6 +37,23 @@ describe("Kernel snapshots", () => {
             checksum(netSnap1),
             checksum(netSnap2),
             "networked snapshot checksums must match",
+        );
+    });
+
+    it("boot snapshot restores fs and processes", async () => {
+        const kernel: any = new (Kernel as any)(new InMemoryFileSystem());
+        const fs = kernel["state"].fs as InMemoryFileSystem;
+        fs.createDirectory("/snap", 0o755);
+        fs.createFile("/snap/file.txt", "data", 0o644);
+        kernelTest!.createProcess(kernel);
+        const snap1 = kernel.snapshot();
+        const restored: any = await (Kernel as any).restore(snap1);
+        const snap2 = restored.snapshot();
+        assert.deepStrictEqual(snap1.fs, snap2.fs, "filesystem restored");
+        assert.deepStrictEqual(
+            snap1.processes,
+            snap2.processes,
+            "process table restored",
         );
     });
 });
