@@ -239,6 +239,7 @@ servers, while the coin example demonstrates a basic peer started with
 10. Communicate between windows with `postMessage` and watch for `desktop.appCrashed` events when a process dies.
 11. `pnpm lint` checks code style; a `precommit` script automatically runs
    `pnpm lint && pnpm test` before each commit.
+12. `pnpm coverage` generates a coverage report in `coverage/`.
 
 ---
 
