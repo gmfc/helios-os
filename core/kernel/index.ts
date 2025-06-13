@@ -367,7 +367,7 @@ export class Kernel {
             const compiled = await kernel.compileWithCache(code, mtime);
             kernel.initPid = await kernel.syscall_spawn(compiled, { syscalls });
         } catch (e) {
-            console.error("Failed to spawn init:", e);
+            throw new Error("Failed to spawn init", { cause: e as Error });
         }
         return kernel;
     }
@@ -811,11 +811,7 @@ export class Kernel {
             close?: () => Promise<void>;
         };
         if (fsClosable.close) {
-            try {
-                await fsClosable.close();
-            } catch (e) {
-                console.error(e);
-            }
+            await fsClosable.close();
         }
         this.running = false;
     }
