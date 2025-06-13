@@ -7,7 +7,7 @@ import {
     FileSystemSnapshot,
     loadFileSystem,
 } from "../fs";
-import type { AsyncFileSystem } from "../fs/async";
+import type { FileSystem } from "../fs";
 import { bootstrapFileSystem } from "../fs/pure";
 import { PersistentFileSystem } from "../fs/persistent";
 import {
@@ -212,7 +212,7 @@ export interface Snapshot {
  * The Helios-OS Kernel, responsible for process, file, and system management.
  */
 export interface KernelState {
-    fs: AsyncFileSystem;
+    fs: FileSystem;
     processes: Map<ProcessID, ProcessControlBlock>;
     nextPid: ProcessID;
     nics: Map<string, NIC>;
@@ -309,7 +309,7 @@ export class Kernel {
         return compileProgram(source);
     }
 
-    private constructor(fs: AsyncFileSystem) {
+    private constructor(fs: FileSystem) {
         this.state = {
             fs,
             processes: new Map(),
@@ -469,7 +469,7 @@ export class Kernel {
         };
         const parsed: Snapshot = JSON.parse(JSON.stringify(snapshot), reviver);
 
-        const fs: AsyncFileSystem = snapshot.fs
+        const fs: FileSystem = snapshot.fs
             ? new InMemoryFileSystem(snapshot.fs, createPersistHook())
             : ((await loadFileSystem()) ?? bootstrapFileSystem());
         const kernel = new Kernel(fs);
@@ -560,9 +560,11 @@ export class Kernel {
 
     public allocatePty(): { id: number; master: string; slave: string } {
         const alloc = this.ptys.allocate();
-        const fs = this.state.fs as any;
-        if (!fs.getNode(alloc.master)) fs.createFile(alloc.master, new Uint8Array(), 0o666);
-        if (!fs.getNode(alloc.slave)) fs.createFile(alloc.slave, new Uint8Array(), 0o666);
+        const fs = this.state.fs;
+        if (!fs.getNode(alloc.master))
+            fs.createFile(alloc.master, new Uint8Array(), 0o666);
+        if (!fs.getNode(alloc.slave))
+            fs.createFile(alloc.slave, new Uint8Array(), 0o666);
         return alloc;
     }
 
@@ -876,7 +878,7 @@ declare const vitest: unknown | undefined;
 export const kernelTest =
     typeof vitest !== "undefined" || process.env.VITEST
         ? {
-              createKernel: (fs: AsyncFileSystem) => {
+              createKernel: (fs: FileSystem) => {
                   const k = new Kernel(fs);
                   (k as any).createProcess();
                   return k;
