@@ -197,6 +197,34 @@ export async function syscall_open(
     flags: string,
 ): Promise<FileDescriptor> {
     const fullPath = resolvePath(pcb, path);
+    if (fullPath.startsWith("/dev/")) {
+        return openDeviceFile.call(this, pcb, fullPath, flags);
+    }
+    return openRegularFile.call(this, pcb, fullPath, flags);
+}
+
+async function openDeviceFile(
+    this: Kernel,
+    pcb: ProcessControlBlock,
+    fullPath: string,
+    flags: string,
+): Promise<FileDescriptor> {
+    if (
+        fullPath === "/dev/ptmx" ||
+        /^\/dev\/tty\d+$/.test(fullPath) ||
+        /^\/dev\/pty\d+$/.test(fullPath)
+    ) {
+        return openPty.call(this, pcb, fullPath, flags);
+    }
+    return openRegularFile.call(this, pcb, fullPath, flags);
+}
+
+async function openPty(
+    this: Kernel,
+    pcb: ProcessControlBlock,
+    fullPath: string,
+    flags: string,
+): Promise<FileDescriptor> {
     if (fullPath === "/dev/ptmx") {
         const alloc = this.ptys.allocate();
         if (!(this.state.fs as any).getNode(alloc.master)) {
@@ -224,38 +252,45 @@ export async function syscall_open(
         this.registerProcFd(pcb.pid, fd);
         return fd;
     }
+
     const ttyMatch = fullPath.match(/^\/dev\/tty(\d+)$/);
     const ptyMatch = fullPath.match(/^\/dev\/pty(\d+)$/);
-    if (ttyMatch || ptyMatch) {
-        const id = parseInt((ttyMatch || ptyMatch)![1], 10);
-        if (!this.ptys.exists(id)) {
-            const alloc = this.ptys.allocate();
-            if (!(this.state.fs as any).getNode(alloc.master)) {
-                (this.state.fs as any).createFile(
-                    alloc.master,
-                    new Uint8Array(),
-                    0o666,
-                );
-            }
-            if (!(this.state.fs as any).getNode(alloc.slave)) {
-                (this.state.fs as any).createFile(
-                    alloc.slave,
-                    new Uint8Array(),
-                    0o666,
-                );
-            }
+    const id = parseInt((ttyMatch || ptyMatch)![1], 10);
+    if (!this.ptys.exists(id)) {
+        const alloc = this.ptys.allocate();
+        if (!(this.state.fs as any).getNode(alloc.master)) {
+            (this.state.fs as any).createFile(
+                alloc.master,
+                new Uint8Array(),
+                0o666,
+            );
         }
-        const fd = pcb.nextFd++;
-        pcb.fds.set(fd, {
-            path: fullPath,
-            position: 0,
-            flags,
-            ttyId: id,
-            ttySide: ttyMatch ? "slave" : "master",
-        });
-        this.registerProcFd(pcb.pid, fd);
-        return fd;
+        if (!(this.state.fs as any).getNode(alloc.slave)) {
+            (this.state.fs as any).createFile(
+                alloc.slave,
+                new Uint8Array(),
+                0o666,
+            );
+        }
     }
+    const fd = pcb.nextFd++;
+    pcb.fds.set(fd, {
+        path: fullPath,
+        position: 0,
+        flags,
+        ttyId: id,
+        ttySide: ttyMatch ? "slave" : "master",
+    });
+    this.registerProcFd(pcb.pid, fd);
+    return fd;
+}
+
+async function openRegularFile(
+    this: Kernel,
+    pcb: ProcessControlBlock,
+    fullPath: string,
+    flags: string,
+): Promise<FileDescriptor> {
     const node = await this.state.fs.open(fullPath, flags);
     if (node.kind === "dir") {
         throw new KernelError(
