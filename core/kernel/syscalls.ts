@@ -173,32 +173,19 @@ export function createSyscallDispatcher(
     };
 }
 
-/**
- * Open a file descriptor for a path. Permissions are checked against the
- * calling process before delegating to the filesystem implementation.
- */
-export async function syscall_open(
+export async function openPty(
     this: Kernel,
     pcb: ProcessControlBlock,
-    path: string,
+    fullPath: string,
     flags: string,
-): Promise<FileDescriptor> {
-    const fullPath = resolvePath(pcb, path);
+): Promise<FileDescriptor | null> {
     if (fullPath === "/dev/ptmx") {
         const alloc = this.ptys.allocate();
         if (!(this.state.fs as any).getNode(alloc.master)) {
-            (this.state.fs as any).createFile(
-                alloc.master,
-                new Uint8Array(),
-                0o666,
-            );
+            (this.state.fs as any).createFile(alloc.master, new Uint8Array(), 0o666);
         }
         if (!(this.state.fs as any).getNode(alloc.slave)) {
-            (this.state.fs as any).createFile(
-                alloc.slave,
-                new Uint8Array(),
-                0o666,
-            );
+            (this.state.fs as any).createFile(alloc.slave, new Uint8Array(), 0o666);
         }
         const fd = pcb.nextFd++;
         pcb.fds.set(fd, {
@@ -211,65 +198,66 @@ export async function syscall_open(
         this.registerProcFd(pcb.pid, fd);
         return fd;
     }
+
     const ttyMatch = fullPath.match(/^\/dev\/tty(\d+)$/);
     const ptyMatch = fullPath.match(/^\/dev\/pty(\d+)$/);
-    if (ttyMatch || ptyMatch) {
-        const id = parseInt((ttyMatch || ptyMatch)![1], 10);
-        if (!this.ptys.exists(id)) {
-            const alloc = this.ptys.allocate();
-            if (!(this.state.fs as any).getNode(alloc.master)) {
-                (this.state.fs as any).createFile(
-                    alloc.master,
-                    new Uint8Array(),
-                    0o666,
-                );
-            }
-            if (!(this.state.fs as any).getNode(alloc.slave)) {
-                (this.state.fs as any).createFile(
-                    alloc.slave,
-                    new Uint8Array(),
-                    0o666,
-                );
-            }
+    if (!ttyMatch && !ptyMatch) return null;
+    const id = parseInt((ttyMatch || ptyMatch)![1], 10);
+    if (!this.ptys.exists(id)) {
+        const alloc = this.ptys.allocate();
+        if (!(this.state.fs as any).getNode(alloc.master)) {
+            (this.state.fs as any).createFile(alloc.master, new Uint8Array(), 0o666);
         }
-        const fd = pcb.nextFd++;
-        pcb.fds.set(fd, {
-            path: fullPath,
-            position: 0,
-            flags,
-            ttyId: id,
-            ttySide: ttyMatch ? "slave" : "master",
-        });
-        this.registerProcFd(pcb.pid, fd);
-        return fd;
+        if (!(this.state.fs as any).getNode(alloc.slave)) {
+            (this.state.fs as any).createFile(alloc.slave, new Uint8Array(), 0o666);
+        }
     }
+    const fd = pcb.nextFd++;
+    pcb.fds.set(fd, {
+        path: fullPath,
+        position: 0,
+        flags,
+        ttyId: id,
+        ttySide: ttyMatch ? "slave" : "master",
+    });
+    this.registerProcFd(pcb.pid, fd);
+    return fd;
+}
+
+export async function openDeviceFile(
+    this: Kernel,
+    pcb: ProcessControlBlock,
+    fullPath: string,
+    flags: string,
+): Promise<FileDescriptor | null> {
+    if (!fullPath.startsWith("/dev")) return null;
+    return openPty.call(this, pcb, fullPath, flags);
+}
+
+export async function openRegularFile(
+    this: Kernel,
+    pcb: ProcessControlBlock,
+    fullPath: string,
+    flags: string,
+): Promise<FileDescriptor> {
     const node = await this.state.fs.open(fullPath, flags);
     if (node.kind === "dir") {
-        throw new Error(
-            `EISDIR: illegal operation on a directory, open '${fullPath}'`,
-        );
+        throw new Error(`EISDIR: illegal operation on a directory, open '${fullPath}'`);
     }
 
     const needsRead = flags.includes("r");
     const needsWrite = flags.includes("w") || flags.includes("a");
-    if (node) {
-        const perm = node.permissions;
-        let rights = 0;
-        if (pcb.uid === 0) {
-            rights = 7;
-        } else if (pcb.uid === node.uid) {
-            rights = (perm >> 6) & 7;
-        } else if (pcb.gid === node.gid) {
-            rights = (perm >> 3) & 7;
-        } else {
-            rights = perm & 7;
-        }
-        if (needsRead && !(rights & 4)) {
-            throw new Error("EACCES: permission denied");
-        }
-        if (needsWrite && !(rights & 2)) {
-            throw new Error("EACCES: permission denied");
-        }
+    const perm = node.permissions;
+    let rights = 0;
+    if (pcb.uid === 0) rights = 7;
+    else if (pcb.uid === node.uid) rights = (perm >> 6) & 7;
+    else if (pcb.gid === node.gid) rights = (perm >> 3) & 7;
+    else rights = perm & 7;
+    if (needsRead && !(rights & 4)) {
+        throw new Error("EACCES: permission denied");
+    }
+    if (needsWrite && !(rights & 2)) {
+        throw new Error("EACCES: permission denied");
     }
 
     const fd = pcb.nextFd++;
@@ -286,6 +274,22 @@ export async function syscall_open(
     });
     this.registerProcFd(pcb.pid, fd);
     return fd;
+}
+
+/**
+ * Open a file descriptor for a path. Permissions are checked against the
+ * calling process before delegating to the filesystem implementation.
+ */
+export async function syscall_open(
+    this: Kernel,
+    pcb: ProcessControlBlock,
+    path: string,
+    flags: string,
+): Promise<FileDescriptor> {
+    const fullPath = resolvePath(pcb, path);
+    const devFd = await openDeviceFile.call(this, pcb, fullPath, flags);
+    if (devFd !== null) return devFd;
+    return openRegularFile.call(this, pcb, fullPath, flags);
 }
 
 /**
