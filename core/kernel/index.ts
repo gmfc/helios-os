@@ -198,6 +198,11 @@ export interface Snapshot {
     routes: unknown;
     initPid: number | null;
     monitors: Monitor[];
+    jobs: unknown;
+    nextJob: number;
+    mountedVolumes: unknown;
+    windowOwners: unknown;
+    dhcpNextHost: number;
 }
 
 /**
@@ -488,6 +493,12 @@ export class Kernel {
                 : [{ width: 800, height: 600, x: 0, y: 0 }];
         eventBus.emit("desktop.updateMonitors", kernel.state.monitors);
 
+        kernel.jobs = new Map(parsed.jobs ?? []);
+        kernel.nextJob = parsed.nextJob ?? 1;
+        kernel.mountedVolumes = new Map(parsed.mountedVolumes ?? []);
+        kernel.windowOwners = new Map(parsed.windowOwners ?? []);
+        kernel.dhcpNextHost = parsed.dhcpNextHost ?? 2;
+
         for (const [name, svc] of kernel.state.services.entries()) {
             if (name.startsWith("httpd")) {
                 startHttpd(kernel, { port: svc.port });
@@ -776,6 +787,11 @@ export class Kernel {
             routes: this.state.routes,
             initPid: this.initPid,
             monitors: this.state.monitors,
+            jobs: this.jobs,
+            nextJob: this.nextJob,
+            mountedVolumes: this.mountedVolumes,
+            windowOwners: this.windowOwners,
+            dhcpNextHost: this.dhcpNextHost,
         };
 
         return JSON.parse(JSON.stringify(state, replacer));
