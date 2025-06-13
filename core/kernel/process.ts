@@ -34,6 +34,8 @@ export interface ProcessControlBlock {
     quotaMem: number;
     cpuMs: number;
     memBytes: number;
+    /** Moving average of CPU slice usage (0-1). */
+    cpuAvg: number;
     /** Number of times the process has exceeded CPU or memory quota. */
     quotaViolations?: number;
     tty?: string;
@@ -64,6 +66,7 @@ export function createProcess(this: Kernel): ProcessID {
         quotaMem: DEFAULT_QUOTA_MEM,
         cpuMs: 0,
         memBytes: 0,
+        cpuAvg: 0,
         quotaViolations: 0,
         tty: undefined,
         started: false,
@@ -108,6 +111,13 @@ export function registerProc(this: Kernel, pid: ProcessID): void {
     if (!(this.state.fs as any).getNode(`/proc/${pid}/fd`)) {
         (this.state.fs as any).createVirtualDirectory(`/proc/${pid}/fd`, 0o555);
     }
+    if (!(this.state.fs as any).getNode(`/proc/${pid}/cmdline`)) {
+        (this.state.fs as any).createVirtualFile(
+            `/proc/${pid}/cmdline`,
+            () => this.procCmdline(pid),
+            0o444,
+        );
+    }
 }
 
 export function registerProcFd(this: Kernel, pid: ProcessID, fd: number): void {
@@ -144,6 +154,13 @@ export function procStatus(this: Kernel, pid: ProcessID): Uint8Array {
     return enc.encode(out);
 }
 
+export function procCmdline(this: Kernel, pid: ProcessID): Uint8Array {
+    const pcb = this.state.processes.get(pid);
+    if (!pcb || !pcb.argv) return new Uint8Array();
+    const enc = new TextEncoder();
+    return enc.encode(pcb.argv.join(" "));
+}
+
 export async function runProcess(
     this: Kernel,
     pcb: ProcessControlBlock,
@@ -167,7 +184,10 @@ export async function runProcess(
             pcb.code = undefined;
         }
         if (result) {
-            pcb.cpuMs += result.cpu_ms ?? 0;
+            const delta = result.cpu_ms ?? 0;
+            pcb.cpuMs += delta;
+            const usage = pcb.quotaMs ? delta / pcb.quotaMs : 0;
+            pcb.cpuAvg = pcb.cpuAvg * 0.8 + usage * 0.2;
             pcb.memBytes += result.mem_bytes ?? 0;
             if (pcb.cpuMs > pcb.quotaMs_total || pcb.memBytes > pcb.quotaMem) {
                 pcb.quotaViolations = (pcb.quotaViolations ?? 0) + 1;

@@ -91,6 +91,7 @@ import {
     registerProcFd,
     removeProcFd,
     procStatus,
+    procCmdline,
     runProcess,
     registerJob,
     removeJob,
@@ -242,6 +243,7 @@ export class Kernel {
     private registerProcFd = registerProcFd;
     private removeProcFd = removeProcFd;
     private procStatus = procStatus;
+    private procCmdline = procCmdline;
     private runProcess = runProcess;
     public registerJob = registerJob;
     public removeJob = removeJob;

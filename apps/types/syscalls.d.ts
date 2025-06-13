@@ -32,7 +32,7 @@ export interface SyscallDispatcher {
     (call: "snapshot"): Promise<Snapshot>;
     (call: "save_snapshot" | "save_snapshot_named", name?: string): Promise<number>;
     (call: "load_snapshot_named", name: string): Promise<number>;
-    (call: "ps"): Promise<Array<{ pid: number; argv?: string[]; exited?: boolean; cpuMs: number; memBytes: number; tty?: string }>>;
+    (call: "ps"): Promise<Array<{ pid: number; argv?: string[]; exited?: boolean; cpuMs: number; memBytes: number; cpuPct: number; memPct: number; tty?: string }>>;
     (call: "jobs"): Promise<Array<{ id: number; pids: ProcessID[]; status: string }>>;
     (call: "window_owners"): Promise<Array<[number, ProcessID]>>;
     (call: "list_services"): Promise<Array<[string, { port: number; proto: string }]>>;

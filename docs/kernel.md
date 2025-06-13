@@ -81,8 +81,9 @@ Each process keeps runtime counters:
 - `memBytes` – memory used while running.
 - `tty` – TTY device attached when spawned.
 
-The `ps` syscall exposes these values so userland can inspect resource usage.
-Example output from the bundled `ps` program:
+The `ps` syscall exposes these values along with a moving-average CPU% so
+userland can inspect resource usage. Example output from the bundled `ps`
+program:
 
 ```
 PID %CPU %MEM TTY COMMAND
@@ -102,7 +103,8 @@ Creation steps for each process:
 2. `registerProc(pid)` adds `/proc/<pid>` and a virtual `status` file whose
    callback serializes the PCB.
 3. A virtual `fd` directory is created for descriptor listings.
-4. `registerProcFd(pid, fd)` creates `/proc/<pid>/fd/<fd>` whenever a new
+4. A `cmdline` file exposes the command used to start the process.
+5. `registerProcFd(pid, fd)` creates `/proc/<pid>/fd/<fd>` whenever a new
    descriptor is opened. `removeProcFd()` deletes the entry on close.
 
 Reading `/proc/<pid>/status` prints details such as:
@@ -114,6 +116,14 @@ cpuMs:\t42
 memBytes:\t2048
 tty:\t/dev/tty0
 cmd:\tping 127.0.0.1
+```
+
+The `/proc/<pid>/cmdline` file contains the command line used to
+spawn the process:
+
+```text
+$ cat /proc/5/cmdline
+ping 127.0.0.1
 ```
 
 Listing `/proc/<pid>/fd` shows numbers for each open descriptor, and each file

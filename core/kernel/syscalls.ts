@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { totalmem } from "node:os";
 import { eventBus } from "../utils/eventBus";
 import { NIC } from "../net/nic";
 import { TCP, TcpConnection } from "../net/tcp";
@@ -791,8 +792,11 @@ export function syscall_ps(this: Kernel) {
         exited?: boolean;
         cpuMs: number;
         memBytes: number;
+        cpuPct: number;
+        memPct: number;
         tty?: string;
     }> = [];
+    const memTotal = totalmem();
     for (const [pid, pcb] of this.state.processes.entries()) {
         list.push({
             pid,
@@ -800,6 +804,8 @@ export function syscall_ps(this: Kernel) {
             exited: pcb.exited,
             cpuMs: pcb.cpuMs,
             memBytes: pcb.memBytes,
+            cpuPct: Math.min(100, pcb.cpuAvg * 100),
+            memPct: memTotal ? (pcb.memBytes / memTotal) * 100 : 0,
             tty: pcb.tty,
         });
     }

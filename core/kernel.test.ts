@@ -83,6 +83,7 @@ describe("Kernel", () => {
             pcb.exitCode = 0;
             pcb.cpuMs += 5;
             pcb.memBytes += 1024;
+            pcb.cpuAvg = pcb.cpuAvg * 0.8 + 0.5 * 0.2;
             runs++;
             if (runs >= 2) pcb.exited = true;
         });
@@ -98,7 +99,9 @@ describe("Kernel", () => {
             proc &&
                 proc.cpuMs === 10 &&
                 proc.memBytes === 2048 &&
-                proc.tty === "/dev/tty1",
+                proc.tty === "/dev/tty1" &&
+                proc.cpuPct > 0 &&
+                proc.memPct > 0,
             "ps should return accumulated cpu/mem and tty",
         );
     });
@@ -352,6 +355,22 @@ describe("Kernel", () => {
             text.includes("pid\t" + procPid) ||
                 text.includes("pid:\t" + procPid),
             "status file readable",
+        );
+        const cfd = await kernelTest!.syscall_open(
+            procKernel,
+            procPcb,
+            `/proc/${procPid}/cmdline`,
+            "r",
+        );
+        const ctext = await kernelTest!.syscall_read(
+            procKernel,
+            procPcb,
+            cfd,
+            1024,
+        );
+        assert(
+            new TextDecoder().decode(ctext).trim() === "",
+            "cmdline file readable",
         );
         try {
             await kernelTest!.syscall_open(
