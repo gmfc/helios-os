@@ -114,7 +114,7 @@ export function createSyscallDispatcher(
             case "snapshot":
                 return this.snapshot();
             case "save_snapshot":
-                persistKernelSnapshot(this.snapshot());
+                await persistKernelSnapshot(this.snapshot());
                 return 0;
             case "save_snapshot_named":
                 await saveNamedSnapshot(args[0], this.snapshot());
@@ -123,7 +123,7 @@ export function createSyscallDispatcher(
                 const snap = await loadNamedSnapshot(args[0]);
                 if (!snap) return -1;
                 this.running = false;
-                persistKernelSnapshot(snap);
+                await persistKernelSnapshot(snap);
                 eventBus.emit("system.reboot", {});
                 return 0;
             }

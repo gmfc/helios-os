@@ -10,12 +10,11 @@ export async function loadSnapshot(): Promise<FileSystemSnapshot | null> {
     }
 }
 
-export async function persistSnapshot(snapshot: FileSystemSnapshot) {
-    try {
-        await invoke("save_fs", { json: JSON.stringify(snapshot) });
-    } catch {
-        // ignore
-    }
+export async function persistSnapshot(
+    snapshot: FileSystemSnapshot,
+): Promise<void> {
+    if (typeof window === "undefined") return;
+    await invoke("save_fs", { json: JSON.stringify(snapshot) });
 }
 
 export function createPersistHook(): PersistHook {
@@ -34,12 +33,9 @@ export async function loadKernelSnapshot(): Promise<any | null> {
     }
 }
 
-export async function persistKernelSnapshot(snapshot: any) {
-    try {
-        await invoke("save_snapshot", { json: JSON.stringify(snapshot) });
-    } catch {
-        // ignore
-    }
+export async function persistKernelSnapshot(snapshot: any): Promise<void> {
+    if (typeof window === "undefined") return;
+    await invoke("save_snapshot", { json: JSON.stringify(snapshot) });
 }
 
 export async function saveNamedSnapshot(name: string, snapshot: any) {

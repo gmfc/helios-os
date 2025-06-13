@@ -353,22 +353,18 @@ export class Kernel {
                 },
             );
         }
+        const node = await fs.open("/sbin/init", "r");
+        const initData = await fs.read("/sbin/init");
+        const code = new TextDecoder().decode(initData);
+        const mtime = node?.modifiedAt.getTime() ?? Date.now();
+        let syscalls: string[] | undefined;
         try {
-            const node = await fs.open("/sbin/init", "r");
-            const initData = await fs.read("/sbin/init");
-            const code = new TextDecoder().decode(initData);
-            const mtime = node?.modifiedAt.getTime() ?? Date.now();
-            let syscalls: string[] | undefined;
-            try {
-                const mdata = await fs.read("/sbin/init.manifest.json");
-                const parsed = JSON.parse(new TextDecoder().decode(mdata));
-                if (Array.isArray(parsed.syscalls)) syscalls = parsed.syscalls;
-            } catch {}
-            const compiled = await kernel.compileWithCache(code, mtime);
-            kernel.initPid = await kernel.syscall_spawn(compiled, { syscalls });
-        } catch (e) {
-            console.error("Failed to spawn init:", e);
-        }
+            const mdata = await fs.read("/sbin/init.manifest.json");
+            const parsed = JSON.parse(new TextDecoder().decode(mdata));
+            if (Array.isArray(parsed.syscalls)) syscalls = parsed.syscalls;
+        } catch {}
+        const compiled = await kernel.compileWithCache(code, mtime);
+        kernel.initPid = await kernel.syscall_spawn(compiled, { syscalls });
         return kernel;
     }
 
@@ -806,16 +802,12 @@ export class Kernel {
     }
 
     public async stop(): Promise<void> {
-        persistKernelSnapshot(this.snapshot());
+        await persistKernelSnapshot(this.snapshot());
         const fsClosable = this.state.fs as unknown as {
             close?: () => Promise<void>;
         };
         if (fsClosable.close) {
-            try {
-                await fsClosable.close();
-            } catch (e) {
-                console.error(e);
-            }
+            await fsClosable.close();
         }
         this.running = false;
     }
