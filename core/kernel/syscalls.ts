@@ -119,6 +119,8 @@ export function createSyscallDispatcher(
                 return this.syscall_set_quota(pcb, args[0], args[1]);
             case "kill":
                 return this.syscall_kill(args[0], args[1]);
+            case "single_user":
+                return this.syscall_single_user(args[0]);
             case "snapshot":
                 return this.snapshot();
             case "save_snapshot":
@@ -493,8 +495,13 @@ export async function syscall_spawn(
  */
 export function syscall_kill(this: Kernel, pid: number, sig?: number): number {
     const pcb = this.state.processes.get(pid);
-    if (!pcb || pid === this.initPid) {
+    if (!pcb) {
         return -1;
+    }
+    if (pid === this.initPid) {
+        if (!this.singleUser || (sig !== undefined && sig !== 15)) {
+            return -1;
+        }
     }
     pcb.exited = true;
     pcb.exitCode = sig ?? 9;
@@ -506,6 +513,14 @@ export function syscall_kill(this: Kernel, pid: number, sig?: number): number {
         }
     }
     return 0;
+}
+
+/** Enable or query single-user mode. */
+export function syscall_single_user(this: Kernel, on?: boolean) {
+    if (typeof on === "boolean") {
+        this.singleUser = on;
+    }
+    return this.singleUser;
 }
 
 /**

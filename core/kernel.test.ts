@@ -410,6 +410,19 @@ describe("Kernel", () => {
         assert.strictEqual(initPcb.exited, false, "init should remain running");
     });
 
+    it("SIGTERM to init rejected unless in single-user mode", async () => {
+        const k = kernelTest!.createKernel(new InMemoryFileSystem());
+        const pid = await kernelTest!.syscall_spawn(k, "dummy");
+        kernelTest!.setInitPid(k, pid);
+        let r = kernelTest!.syscall_kill(k, pid, 15);
+        assert.strictEqual(r, -1, "should fail when not single-user");
+        kernelTest!.syscall_single_user(k, true);
+        r = kernelTest!.syscall_kill(k, pid, 15);
+        assert.strictEqual(r, 0, "should succeed in single-user mode");
+        const pcb = kernelTest!.getState(k).processes.get(pid)!;
+        assert.strictEqual(pcb.exited, true, "init should exit on SIGTERM");
+    });
+
     it("memory quota enforcement", async () => {
         globalThis.window = {} as any;
         globalThis.window.crypto = {
