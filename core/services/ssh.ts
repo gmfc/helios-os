@@ -16,26 +16,23 @@ export function startSshd(kernel: Kernel, opts: SshOptions = {}): void {
             let user = "";
             let pass = "";
             let ptyId: number | null = null;
-
-            const ptys = (kernel as any).ptys;
-            const fs = (kernel as any).state.fs as any;
+            let pty: { read(len: number): Uint8Array; write(data: Uint8Array): void } | null = null;
 
             function startShell() {
-                const alloc = ptys.allocate();
-                if (!fs.getNode(alloc.master)) fs.createFile(alloc.master, new Uint8Array(), 0o666);
-                if (!fs.getNode(alloc.slave)) fs.createFile(alloc.slave, new Uint8Array(), 0o666);
+                const alloc = kernel.allocatePty();
                 ptyId = alloc.id;
+                pty = kernel.openPty(alloc.id, "master");
                 void kernel.spawn(`bash tty${alloc.id}`, { tty: alloc.slave });
                 setInterval(() => {
-                    if (ptyId === null) return;
-                    const out = ptys.read(ptyId, "master", 1024);
+                    if (!pty) return;
+                    const out = pty.read(1024);
                     if (out.length > 0) conn.write(out);
                 }, 10);
             }
 
             conn.onData((data) => {
                 if (stage === "shell") {
-                    if (ptyId !== null) ptys.write(ptyId, "master", data);
+                    if (pty) pty.write(data);
                     return;
                 }
                 const text = dec.decode(data);

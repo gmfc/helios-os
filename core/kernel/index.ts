@@ -24,7 +24,7 @@ import { NIC } from "../net/nic";
 import { TCP, TcpHandler, TcpConnection } from "../net/tcp";
 import { UDP, UdpHandler, UdpConnection } from "../net/udp";
 import { Router } from "../net/router";
-import { PtyManager } from "./tty";
+import { PtyManager, TtySide } from "./tty";
 import { BASH_SOURCE } from "../fs/bin";
 
 function ipToInt(ip: string): number {
@@ -547,6 +547,27 @@ export class Kernel {
         );
 
         return kernel;
+    }
+
+    public allocatePty(): { id: number; master: string; slave: string } {
+        const alloc = this.ptys.allocate();
+        const fs = this.state.fs as any;
+        if (!fs.getNode(alloc.master)) fs.createFile(alloc.master, new Uint8Array(), 0o666);
+        if (!fs.getNode(alloc.slave)) fs.createFile(alloc.slave, new Uint8Array(), 0o666);
+        return alloc;
+    }
+
+    public openPty(id: number, side: TtySide): {
+        read: (len: number) => Uint8Array;
+        write: (data: Uint8Array) => void;
+        wait: () => Promise<void>;
+    } {
+        if (!this.ptys.exists(id)) this.allocatePty();
+        return {
+            read: (len: number) => this.ptys.read(id, side, len),
+            write: (data: Uint8Array) => this.ptys.write(id, side, data),
+            wait: () => this.ptys.wait(id, side),
+        };
     }
 
     public async spawn(command: string, opts: SpawnOpts = {}): Promise<number> {
